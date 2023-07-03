@@ -256,7 +256,7 @@ class Gamma():
                     step_data['step_grads'] = tape.gradient(step_data['step_loss'], model.src.trainable_variables)
 
                     # -- apply grads -- #
-                    model.src.optimizer.apply_gradients(zip(step_data['step_grads'], model.src.trainable_variables))
+                    model.src.optimizer.apply_grads(list(zip(step_data['step_grads'], model.src.trainable_variables)))
 
                     # -- save optimizer variables to theta -- #
                     model.gauge.theta.save_params('opt')
