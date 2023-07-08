@@ -76,7 +76,7 @@ class AdamDynamic(tf.keras.optimizers.Adam):
 
         super().__init__(learning_rate=self.lr_sch)
 
-    # @tf.function()
+    @tf.function()
     def apply_grads(self, *args, **kwargs):
         return self.apply_gradients(*args, **kwargs)
 

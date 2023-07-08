@@ -1,33 +1,79 @@
-import os, sys, math, pickle, json, shelve, struct, pathlib
+import os
+import shelve
+import pathlib
 
-from dataclasses import dataclass, field, replace as dc_replace
-from typing import List, Dict, Any, Optional
-from photon.utils import args_key_chk
-
-from contextlib import redirect_stdout, nullcontext
-
-from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
+from typing import List, Dict, Optional, Union
 
 import numpy as np
 import pandas as pd
-import pyarrow as pa
 import pyarrow.parquet as pq
 
 import tensorflow as tf
 
-from tensorflow.keras import backend as K
+import torch
+from torch.utils.data import DataLoader, Dataset
 
 from sklearn import preprocessing
 
 from photon import metrics, losses, utils
 from photon.gamma import Gamma
 
+
+
+def get_dataset(data,
+                data_type,
+                batch_size):
+
+    store = data.store[data_type]
+
+    if data.framework == 'tf':
+
+        x_ds = tf.data.Dataset.from_tensor_slices(tf.convert_to_tensor(store['x_bars'], dtype=data.dtype))
+        y_ds = tf.data.Dataset.from_tensor_slices(tf.convert_to_tensor(store['y_bars'], dtype=data.dtype))
+        t_ds = tf.data.Dataset.from_tensor_slices(tf.convert_to_tensor(store['t_bars'], dtype=data.dtype))
+
+        if data.outputs_on:
+            o_ds = tf.data.Dataset.from_tensor_slices(
+                tf.convert_to_tensor(store['model_bars'][data.slice_configs['x_slice']], dtype=data.dtype))
+            return tf.data.Dataset.zip((x_ds, y_ds, t_ds, o_ds)).batch(batch_size)
+        else:
+            return tf.data.Dataset.zip((x_ds, y_ds, t_ds)).batch(batch_size)
+
+    # elif framework == 'torch':
+    #     return TorchDataset(store, dtype)
+    # else:
+    #     raise ValueError
+
+
+class TorchDataset(Dataset):
+
+    def __init__(self, store, dtype):
+
+        self.model_bars = torch.tensor(store['model_bars'], dtype=dtype)
+        self.x_bars = torch.tensor(store['x_bars'], dtype=torch.float32)
+        self.y_bars = torch.tensor(store['y_bars'], dtype=torch.float32)
+        self.t_bars = torch.tensor(store['t_bars'], dtype=torch.float32)
+        self.c_bars = torch.tensor(store['c_bars'], dtype=torch.float32)
+
+    def __len__(self):
+        return len(self.x_bars)
+
+    def __getitem__(self, idx):
+        return (self.model_bars[idx],
+                self.x_bars[idx],
+                self.y_bars[idx],
+                self.t_bars[idx],
+                self.c_bars[idx])
+
+
 class Photon():
 
-    def __init__(self, run_local: bool = False, mem_limit_on: bool = True, run_dir: Optional[str]=None) -> None:
+    def __init__(self,
+                 framework: str = 'tf',
+                 run_dir: Optional[str] = None) -> None:
 
-        self.run_local = run_local
-        self.mem_limit_on = mem_limit_on
+        self.framework = framework
         self.run_dir = run_dir
         self.mod_dir = pathlib.Path(__file__).parent.parent
 
@@ -41,14 +87,7 @@ class Photon():
         self.losses = losses.Losses()
         self.utils = utils
 
-        self.physical_cpus = tf.config.list_physical_devices('CPU')
-        self.physical_gpus = tf.config.list_physical_devices('GPU')
-
-        self.n_gpus = len(self.physical_gpus)
-
-        if self.mem_limit_on:
-            for d in self.physical_gpus:
-                tf.config.experimental.set_memory_growth(d, True)
+        self.n_gpus = 1
 
         self.set_options(2)
 
@@ -63,7 +102,7 @@ class Photon():
 
         float_p = '%.' + str(fp) + 'f'
 
-        ff = lambda x: float_p % x
+        def ff(x): return float_p % x
 
         pd.options.display.float_format = ff
         pd.set_option('display.max_rows', max_rows)
@@ -98,7 +137,7 @@ class Photon():
         if photon_load_id == 0:
 
             if 'photon_id' in db:
-                db['photon_id']+=1
+                db['photon_id'] += 1
             else:
                 db['photon_id'] = 1
 
@@ -113,6 +152,7 @@ class Photon():
         db.close()
 
         return
+
 
 class Networks():
 
@@ -146,6 +186,8 @@ class Networks():
 
         self.photon.setup_photon(self.photon_load_id)
 
+        self.framework = photon.framework
+
         self.gamma = self.photon.Gamma(self)
 
         self.x_groups_on = x_groups_on
@@ -166,14 +208,17 @@ class Networks():
         if float_x == 16:
             self.float_x = 'float16'
             self.dtype = np.float16
+            self.framework_dtype = torch.float16 if self.framework == 'torch' else tf.float16
 
         if float_x == 32:
             self.float_x = 'float32'
             self.dtype = np.float32
+            self.framework_dtype = torch.float32 if self.framework == 'torch' else tf.float32
 
         if float_x == 64:
             self.float_x = 'float64'
             self.dtype = np.float64
+            self.framework_dtype = torch.float64 if self.framework == 'torch' else tf.float64
 
         # -- load data -- #
         self.load_data()
@@ -187,8 +232,6 @@ class Networks():
         self.branches = []
         self.chains = []
         self.runs = []
-
-        K.set_floatx(self.float_x)
 
     def add_tree(self, tree):
 
@@ -208,15 +251,13 @@ class Networks():
 
         self.data_fp = self.data_dir + '/' + self.data_fn + '.parquet'
 
-        self.data = self.Data()
+        self.data = self.Data(self.framework, self.framework_dtype)
 
         self.setup_cols(self.data_cols)
 
-        self.data.full_bars = pq.read_table(self.data_fp).to_pandas().astype(self.dtype)
-
         all_cols = self.data.all_cols + ['is_close']
 
-        self.data.full_bars = self.data.full_bars[all_cols]
+        self.data.full_bars = pq.read_table(self.data_fp).to_pandas().astype(self.dtype)[all_cols]
 
         return
 
@@ -325,12 +366,13 @@ class Networks():
                                 'day_idx',
                                 'BAR_TP']
 
-        self.data.all_cols = self.data.x_cols + self.data.c_cols + self.data.y_cols + self.data.t_cols
+        self.data.all_cols = self.data.x_cols + \
+            self.data.c_cols + self.data.y_cols + self.data.t_cols
 
         x_ed = self.data.n_x_cols
         c_st = x_ed
         c_ed = c_st + self.data.n_c_cols
-        y_st= c_ed
+        y_st = c_ed
         y_ed = y_st + self.data.n_y_cols
         t_st = y_ed
 
@@ -395,6 +437,9 @@ class Networks():
     @dataclass
     class Data:
 
+        framework: str
+        dtype: Union[tf.DType, torch.dtype]
+
         x_cols: List = field(default_factory=lambda: [[]])
         c_cols: List = field(default_factory=lambda: [[]])
         y_cols: List = field(default_factory=lambda: [[]])
@@ -425,6 +470,9 @@ class Networks():
         rank: int = 2
 
         seq_on: bool = False
+
+        full_bars: pd.DataFrame = field(init=False)
+
 
 class Trees():
 
@@ -500,6 +548,10 @@ class Trees():
 
         if self.data.seq_days:
             self.data.seq_on = True
+
+        self.datasets = {'train': None,
+                         'val': None,
+                         'test': None}
 
     def load_data(self):
 
@@ -618,13 +670,12 @@ class Trees():
 
     def setup_data(self):
 
-        self.data.dtype = self.network.dtype
-
         if self.data.seq_agg > 0:
             self.data.seq_depth = int(self.data.seq_len / self.data.seq_agg)
 
         if 'c_cols' in self.data.f_cols:
-            self.data.input_shape = (self.data.seq_depth, self.data.n_x_cols + self.data.n_c_cols)
+            self.data.input_shape = (
+                self.data.seq_depth, self.data.n_x_cols + self.data.n_c_cols)
 
         if 'c_cols' not in self.data.f_cols:
             self.data.input_shape = (self.data.seq_depth, self.data.n_x_cols)
@@ -640,7 +691,8 @@ class Trees():
 
         load_days = train_days + test_days + val_days
 
-        self.data.close_bars = self.data.full_bars[self.data.full_bars['is_close'] == True][self.data.close_cols].copy()
+        self.data.close_bars = self.data.full_bars[self.data.full_bars['is_close']
+                                                   == True][self.data.close_cols].copy()
 
         max_days = self.data.full_bars['day_idx'].max()
 
@@ -695,7 +747,8 @@ class Trees():
     def setup_stores(self, data_type):
 
         self.data.store[data_type]['config']['n_samples'] = \
-            self.data.samples_pd * self.data.store[data_type]['config']['n_days']
+            self.data.samples_pd * \
+            self.data.store[data_type]['config']['n_days']
 
         full_bars = self.data.store[data_type]['full_bars']
 
@@ -707,7 +760,8 @@ class Trees():
         full_bars = self.normalize_bars(full_bars)
 
         if self.data.seq_days:
-            self.data.store[data_type]['model_bars'] = self.seq_bars(full_bars, data_type)
+            self.data.store[data_type]['model_bars'] = self.seq_bars(
+                full_bars, data_type)
         else:
             self.data.store[data_type]['model_bars'] = full_bars.to_numpy()
 
@@ -722,7 +776,8 @@ class Trees():
 
         n_bins = int(data_bars.shape[0] / self.data.seq_agg)
 
-        data_bars = data_bars.groupby(pd.cut(data_bars.index, bins=n_bins)).agg(self.data.agg_data).dropna()
+        data_bars = data_bars.groupby(pd.cut(data_bars.index, bins=n_bins)).agg(
+            self.data.agg_data).dropna()
 
         return data_bars.reset_index(drop=True)
 
@@ -737,9 +792,12 @@ class Trees():
             if not self.network.x_groups_on:
                 x_cols = self.data.nor_data['x']
 
-                self.data.preproc_trans['train']['x_cols'] = getattr(preprocessing, x_norm['cls'])(**x_norm['params'])
-                self.data.preproc_trans['train']['x_cols'].fit(data_bars[x_cols])
-                data_bars[x_cols] = self.data.preproc_trans['train']['x_cols'].transform(data_bars[x_cols])
+                self.data.preproc_trans['train']['x_cols'] = getattr(
+                    preprocessing, x_norm['cls'])(**x_norm['params'])
+                self.data.preproc_trans['train']['x_cols'].fit(
+                    data_bars[x_cols])
+                data_bars[x_cols] = self.data.preproc_trans['train']['x_cols'].transform(
+                    data_bars[x_cols])
 
             # -- x groups on -- #
             if self.network.x_groups_on:
@@ -747,45 +805,62 @@ class Trees():
                 # -- pr cols -- #
                 pr_cols = self.data.x_groups['pr_group']
 
-                self.data.preproc_trans['train']['pr_cols'] = getattr(preprocessing, x_norm['cls'])(**x_norm['params'])
-                self.data.preproc_trans['train']['pr_cols'].fit(data_bars[pr_cols])
-                data_bars[pr_cols] = self.data.preproc_trans['train']['pr_cols'].transform(data_bars[pr_cols])
+                self.data.preproc_trans['train']['pr_cols'] = getattr(
+                    preprocessing, x_norm['cls'])(**x_norm['params'])
+                self.data.preproc_trans['train']['pr_cols'].fit(
+                    data_bars[pr_cols])
+                data_bars[pr_cols] = self.data.preproc_trans['train']['pr_cols'].transform(
+                    data_bars[pr_cols])
 
                 # -- vol cols -- #
                 vol_cols = self.data.x_groups['vol_group']
 
-                self.data.preproc_trans['train']['vol_cols'] = getattr(preprocessing, x_norm['cls'])(**x_norm['params'])
-                self.data.preproc_trans['train']['vol_cols'].fit(data_bars[vol_cols])
-                data_bars[vol_cols] = self.data.preproc_trans['train']['vol_cols'].transform(data_bars[vol_cols])
+                self.data.preproc_trans['train']['vol_cols'] = getattr(
+                    preprocessing, x_norm['cls'])(**x_norm['params'])
+                self.data.preproc_trans['train']['vol_cols'].fit(
+                    data_bars[vol_cols])
+                data_bars[vol_cols] = self.data.preproc_trans['train']['vol_cols'].transform(
+                    data_bars[vol_cols])
 
                 # -- atr cols -- #
                 atr_cols = self.data.x_groups['atr_group']
 
-                self.data.preproc_trans['train']['atr_cols'] = getattr(preprocessing, x_norm['cls'])(**x_norm['params'])
-                self.data.preproc_trans['train']['atr_cols'].fit(data_bars[atr_cols])
-                data_bars[atr_cols] = self.data.preproc_trans['train']['atr_cols'].transform(data_bars[atr_cols])
+                self.data.preproc_trans['train']['atr_cols'] = getattr(
+                    preprocessing, x_norm['cls'])(**x_norm['params'])
+                self.data.preproc_trans['train']['atr_cols'].fit(
+                    data_bars[atr_cols])
+                data_bars[atr_cols] = self.data.preproc_trans['train']['atr_cols'].transform(
+                    data_bars[atr_cols])
 
                 # -- roc cols -- #
                 roc_cols = self.data.x_groups['roc_group']
 
-                self.data.preproc_trans['train']['roc_cols'] = getattr(preprocessing, x_norm['cls'])(**x_norm['params'])
-                self.data.preproc_trans['train']['roc_cols'].fit(data_bars[roc_cols])
-                data_bars[roc_cols] = self.data.preproc_trans['train']['roc_cols'].transform(data_bars[roc_cols])
+                self.data.preproc_trans['train']['roc_cols'] = getattr(
+                    preprocessing, x_norm['cls'])(**x_norm['params'])
+                self.data.preproc_trans['train']['roc_cols'].fit(
+                    data_bars[roc_cols])
+                data_bars[roc_cols] = self.data.preproc_trans['train']['roc_cols'].transform(
+                    data_bars[roc_cols])
 
                 # -- zsc cols -- #
                 zsc_cols = self.data.x_groups['zsc_group']
 
-                self.data.preproc_trans['train']['zsc_cols'] = getattr(preprocessing, x_norm['cls'])(**x_norm['params'])
-                self.data.preproc_trans['train']['zsc_cols'].fit(data_bars[zsc_cols])
-                data_bars[zsc_cols] = self.data.preproc_trans['train']['zsc_cols'].transform(data_bars[zsc_cols])
+                self.data.preproc_trans['train']['zsc_cols'] = getattr(
+                    preprocessing, x_norm['cls'])(**x_norm['params'])
+                self.data.preproc_trans['train']['zsc_cols'].fit(
+                    data_bars[zsc_cols])
+                data_bars[zsc_cols] = self.data.preproc_trans['train']['zsc_cols'].transform(
+                    data_bars[zsc_cols])
 
         # --- c cols --- #
         if c_norm is not None and self.data.n_c_cols > 0:
             c_cols = self.data.nor_data['c']
 
-            self.data.preproc_trans['train']['c_cols'] = getattr(preprocessing, c_norm['cls'])(**c_norm['params'])
+            self.data.preproc_trans['train']['c_cols'] = getattr(
+                preprocessing, c_norm['cls'])(**c_norm['params'])
             self.data.preproc_trans['train']['c_cols'].fit(data_bars[c_cols])
-            data_bars[c_cols] = self.data.preproc_trans['train']['c_cols'].transform(data_bars[c_cols])
+            data_bars[c_cols] = self.data.preproc_trans['train']['c_cols'].transform(
+                data_bars[c_cols])
 
         return data_bars
 
@@ -848,23 +923,28 @@ class Trees():
                 np.concatenate([self.data.store[data_type]['x_bars'],
                                 self.data.store[data_type]['c_bars']], axis=-1)
 
-        x_ds = tf.data.Dataset.from_tensor_slices(tf.convert_to_tensor(self.data.store[data_type]['x_bars'],
-                                                                       dtype=self.data.dtype))
+        self.data.store[data_type][dest] = get_dataset(self.data, data_type, batch_size)
 
-        y_ds = tf.data.Dataset.from_tensor_slices(tf.convert_to_tensor(self.data.store[data_type]['y_bars'],
-                                                                       dtype=self.data.dtype))
+        # x_ds = tf.data.Dataset.from_tensor_slices(tf.convert_to_tensor(self.data.store[data_type]['x_bars'],
+        #                                                                dtype=self.data.dtype))
 
-        t_ds = tf.data.Dataset.from_tensor_slices(tf.convert_to_tensor(self.data.store[data_type]['t_bars'],
-                                                                       dtype=self.data.dtype))
-        if self.data.outputs_on:
-            o_ds = self.setup_outputs_ds(data_type)
-            self.data.store[data_type][dest] = tf.data.Dataset.zip((x_ds, y_ds, t_ds, o_ds)).batch(batch_size)
-        else:
-            self.data.store[data_type][dest] = tf.data.Dataset.zip((x_ds, y_ds, t_ds)).batch(batch_size)
+        # y_ds = tf.data.Dataset.from_tensor_slices(tf.convert_to_tensor(self.data.store[data_type]['y_bars'],
+        #                                                                dtype=self.data.dtype))
+
+        # t_ds = tf.data.Dataset.from_tensor_slices(tf.convert_to_tensor(self.data.store[data_type]['t_bars'],
+        #                                                                dtype=self.data.dtype))
+        # if self.data.outputs_on:
+        #     o_ds = self.setup_outputs_ds(data_type)
+        #     self.data.store[data_type][dest] = tf.data.Dataset.zip(
+        #         (x_ds, y_ds, t_ds, o_ds)).batch(batch_size)
+        # else:
+        #     self.data.store[data_type][dest] = tf.data.Dataset.zip(
+        #         (x_ds, y_ds, t_ds)).batch(batch_size)
 
         # self.data.store[data_type][dest] = self.data.store[data_type][dest].prefetch(10)
 
         return
+
 
 class Branches():
 
@@ -945,7 +1025,7 @@ class Branches():
         run_config: List
         save_config: List
 
-        def by_chain_idx(self, type:str, chain_idx:int) -> Dict:
+        def by_chain_idx(self, type: str, chain_idx: int) -> Dict:
 
             obj = getattr(self, type+'_config')
 
@@ -963,6 +1043,7 @@ class Branches():
                 obj_out = obj[chain_idx]
 
             return obj_out
+
 
 class Chains():
 
@@ -1005,14 +1086,21 @@ class Chains():
 
     def build_chain(self):
 
-        self.model_config = self.branch.configs.by_chain_idx('model', self.chain_idx)
-        self.data_config = self.branch.configs.by_chain_idx('data', self.chain_idx)
-        self.build_config = self.branch.configs.by_chain_idx('build', self.chain_idx)
+        self.model_config = self.branch.configs.by_chain_idx(
+            'model', self.chain_idx)
+        self.data_config = self.branch.configs.by_chain_idx(
+            'data', self.chain_idx)
+        self.build_config = self.branch.configs.by_chain_idx(
+            'build', self.chain_idx)
 
-        self.opt_config = self.branch.configs.by_chain_idx('opt', self.chain_idx)
-        self.loss_config = self.branch.configs.by_chain_idx('loss', self.chain_idx)
-        self.metrics_config = self.branch.configs.by_chain_idx('metrics', self.chain_idx)
-        self.save_config = self.branch.configs.by_chain_idx('save', self.chain_idx)
+        self.opt_config = self.branch.configs.by_chain_idx(
+            'opt', self.chain_idx)
+        self.loss_config = self.branch.configs.by_chain_idx(
+            'loss', self.chain_idx)
+        self.metrics_config = self.branch.configs.by_chain_idx(
+            'metrics', self.chain_idx)
+        self.save_config = self.branch.configs.by_chain_idx(
+            'save', self.chain_idx)
 
         self.n_models = self.model_config['n_models']
         self.n_outputs = self.model_config['n_models']
@@ -1059,19 +1147,12 @@ class Chains():
                                                 dtype=self.network.float_x,
                                                 name=self.name + '_tracking_data')
 
+
         # --- setup gauge/models --- #
         for model_idx in range(self.n_models):
 
             # --- init gauge --- #
             gauge = Gauge(chain=self, model_idx=model_idx)
-
-            # # --- build gauge --- #
-            # if gauge.strat_on:
-            #     with gauge.strat.scope():
-            #         gauge.build_gauge(self)
-            #
-            # if not gauge.strat_on:
-            #     gauge.build_gauge(self)
 
             # -- insert into chain models -- #
             self.models.insert(model_idx, gauge)
@@ -1085,13 +1166,15 @@ class Chains():
         targets_config = self.data_config['targets']
         split_on = targets_config['split_on']
 
-        self.data_config['targets']['true_slice'] = np.s_[...,:split_on]
+        self.data_config['targets']['true_slice'] = np.s_[..., :split_on]
         self.data_config['targets']['tracking_slice'] = np.s_[..., split_on:]
 
     @dataclass
     class Logs:
 
-        batch_data: List = field(default_factory=lambda: {'main':[[]],'val':[[]]})
+        batch_data: List = field(default_factory=lambda: {
+                                 'main': [[]], 'val': [[]]})
+
 
 class Gauge():
 
@@ -1173,7 +1256,8 @@ class Gauge():
                 self.strat_on = True
 
                 if self.strat_type == 'Mirrored':
-                    self.strat = tf.distribute.MirroredStrategy(self.chain.photon.gpus)
+                    self.strat = tf.distribute.MirroredStrategy(
+                        self.chain.photon.gpus)
                     self.dist_on = True
 
         # if self.strat_type == 'One':
@@ -1207,7 +1291,8 @@ class Gauge():
 
     def setup_loss_fn(self):
 
-        self.loss_fn = self.chain.loss_config['fn'](**self.chain.loss_config['args'])
+        self.loss_fn = self.chain.loss_config['fn'](
+            **self.chain.loss_config['args'])
 
     def compile_gauge(self, tree_idx):
 
@@ -1252,7 +1337,8 @@ class Gauge():
         if self.chkp_manager.latest_checkpoint and load_cp:
 
             chkp_status = None
-            chkp_status = self.chkp.restore(self.chkp_manager.latest_checkpoint)
+            chkp_status = self.chkp.restore(
+                self.chkp_manager.latest_checkpoint)
             chkp_status.assert_existing_objects_matched()
 
             print(f'model restored from {self.chkp_manager.latest_checkpoint}')
@@ -1261,7 +1347,8 @@ class Gauge():
 
         branch_nm = 'branch_' + str(self.branch.branch_idx)
 
-        chkp_dir = self.network.photon.store['chkps'] + '/' + self.network.photon.photon_nm.lower() + '/' + branch_nm + '/' + self.chain.name.lower() + '/model_' + str(self.model_idx)
+        chkp_dir = self.network.photon.store['chkps'] + '/' + self.network.photon.photon_nm.lower(
+        ) + '/' + branch_nm + '/' + self.chain.name.lower() + '/model_' + str(self.model_idx)
 
         if self.network.photon_load_id == 0 and os.path.exists(chkp_dir):
             os.remove(chkp_dir)
@@ -1287,10 +1374,14 @@ class Gauge():
     @dataclass
     class Logs:
 
-        calls: List = field(default_factory=lambda: {'main':[[]],'val':[[]]})
-        layers: List = field(default_factory=lambda: {'main':[[]],'val':[[]]})
-        run_data: List = field(default_factory=lambda: {'main':[[]],'val':[[]]})
+        calls: List = field(default_factory=lambda: {
+                            'main': [[]], 'val': [[]]})
+        layers: List = field(default_factory=lambda: {
+                             'main': [[]], 'val': [[]]})
+        run_data: List = field(default_factory=lambda: {
+                               'main': [[]], 'val': [[]]})
         theta: List = field(default_factory=lambda: [[]])
+
 
 class Theta:
 
@@ -1299,7 +1390,8 @@ class Theta:
         self.gauge = gauge
         self.logs_on = self.gauge.log_theta
 
-        self.params = {'model_pre': [], 'model_post': [], 'opt': [], 'grads': []}
+        self.params = {'model_pre': [],
+                       'model_post': [], 'opt': [], 'grads': []}
 
     def save_params(self, param_type, grads=None):
 
@@ -1351,4 +1443,5 @@ class Theta:
 
             self.gauge.logs.theta[epoch_idx].append(self.params.copy())
 
-            self.params = {'model_pre': [], 'model_post': [], 'opt': [], 'grads': []}
+            self.params = {'model_pre': [],
+                           'model_post': [], 'opt': [], 'grads': []}

@@ -35,7 +35,6 @@ def setup_runs(network, branches, run_config, run_fn, rebuild_on):
                        'load_cp': branch_run_config['load_cp'],
                        'save_cp': branch_run_config['save_cp'],
                        'msgs_on': branch_run_config['msgs_on'],
-                       'async_on': branch_run_config['async_on'],
                        'n_metrics_fns': len(branch.configs.by_chain_idx('metrics', chain_idx))}
 
             if len(run_config) > chain_idx:
@@ -166,7 +165,6 @@ class Chains:
         load_cp: bool
         save_cp: bool
         msgs_on: bool
-        async_on: bool
         n_metrics_fns: int
 
         def __repr__(self):
@@ -221,8 +219,6 @@ class Chains:
                 self.gauge.build_gauge(self.chain.branch.run, self.chain, self)
 
             self.src = self.gauge.src
-
-            # self.gauge.setup_run(self.chain.branch.run, self.chain, self)
 
             # -- if first run of network or rebuild is on -- #
             if not self.chain.branch.run.network.runs or self.chain.branch.run.rebuild_on:
