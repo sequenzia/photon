@@ -4,7 +4,12 @@ from dataclasses import dataclass, field, replace as dc_replace
 from typing import List, Dict, Any
 from datetime import datetime as dt
 
-def setup_runs(network, branches, run_config, run_fn, rebuild_on):
+
+def setup_runs(network: Any,
+               branches: Any,
+               run_config: Dict,
+               run_fn: str,
+               rebuild_on: bool):
 
     if not run_fn:
         run_fn = 'data-models'
@@ -185,13 +190,6 @@ class Chains:
 
         def __repr__(self):
             return f'{self.__class__} {hex(id(self))}'
-
-        @classmethod
-        def set_cls_attr(cls, xxx):
-            if xxx:
-                cls.cls_attr = 'this_value'
-            else:
-                cls.cls_attr = 'that_value'
 
     @dataclass
     class Models:

@@ -1,4 +1,11 @@
-import os, sys, asyncio, tracemalloc, threading, math, functools, time
+import os
+import sys
+import asyncio
+import tracemalloc
+import threading
+import math
+import functools
+import time
 import tensorflow as tf
 import numpy as np
 import pandas as pd
@@ -10,6 +17,9 @@ from dataclasses import replace as dc_replace
 
 from photon.runs import setup_runs
 from photon.utils import dest_append, obj_exp
+
+from photon.runs import Runs, Branches, Chains
+
 
 def run_timer(func):
     @functools.wraps(func)
@@ -31,6 +41,7 @@ def run_timer(func):
 
     return timer_wrapper
 
+
 class Gamma():
 
     def __init__(self, network):
@@ -43,7 +54,7 @@ class Gamma():
 
     @run_timer
     def run_network(self,
-                    branches=None,
+                    branches: Branches = None,
                     run_config=[],
                     epochs_on=True,
                     run_fn=None,
@@ -54,9 +65,11 @@ class Gamma():
 
         run = self.setup_runs(self.network, branches, run_config, run_fn, rebuild_on)
 
+        run.run_data = []
+
         if epochs_on:
             for branch_idx, branch in enumerate(run.branches):
-                self.run_epochs(branch)
+                run.run_data.append(self.run_epochs(branch))
 
         return run
 
@@ -65,6 +78,8 @@ class Gamma():
         # --- init msg --- #
         if branch.src.msgs_on:
             self.init_msg(branch.src)
+
+        epoch_data = {'loss': []}
 
         for epoch_idx in range(branch.src.n_epochs):
 
@@ -92,10 +107,18 @@ class Gamma():
                 self.save_chkps(branch)
 
                 if branch.src.msgs_on:
+
                     self.epoch_msg(branch, epoch_idx)
                     self.save_log(branch, epoch_idx)
 
-        return
+                    epoch_data['loss'].append(branch.epoch_msg['data'][chain_idx]['main_loss'][0])
+
+                    if chain.config.val_on:
+                        if not epoch_data.get('val_loss', None):
+                            epoch_data.update({'val_loss': []})
+                        epoch_data['val_loss'].append(branch.epoch_msg['data'][chain_idx]['val_loss'][0])
+
+        return pd.DataFrame.from_dict(epoch_data)
 
     def run_chain(self, chain):
 
@@ -206,10 +229,10 @@ class Gamma():
 
                     # -- run model -- #
                     step_data = model.src(inputs=batch_data['inputs'],
-                                            training=True,
-                                            batch_idx=batch_idx,
-                                            targets=batch_data['targets'],
-                                            tracking=batch_data['tracking'])
+                                          training=True,
+                                          batch_idx=batch_idx,
+                                          targets=batch_data['targets'],
+                                          tracking=batch_data['tracking'])
 
                     # -- save pre model variables to theta -- #
                     model.gauge.theta.save_params('model_pre')
@@ -342,8 +365,8 @@ class Gamma():
             device_models = math.ceil(n_models * (device_dist[device_idx] / device_calls))
 
             _spec = {'device_idx': device_idx,
-                        'device_calls': device_calls,
-                        'device_models': device_models}
+                     'device_calls': device_calls,
+                     'device_models': device_models}
 
             device_spec.insert(device_idx, _spec)
 
@@ -518,22 +541,28 @@ class Gamma():
                     if epoch_idx > 0:
                         loss_epoch_idx = 0
 
-                branch.epoch_msg['data'][chain_idx]['main_loss'].insert(model_idx, np.mean(model.steps.full_loss[loss_epoch_idx]))
+                branch.epoch_msg['data'][chain_idx]['main_loss'].insert(
+                    model_idx, np.mean(model.steps.full_loss[loss_epoch_idx]))
 
                 if chain.config.val_on:
 
-                    branch.epoch_msg['data'][chain_idx]['val_loss'].insert(model_idx, np.mean(model.val_steps.full_loss[loss_epoch_idx]))
+                    branch.epoch_msg['data'][chain_idx]['val_loss'].insert(
+                        model_idx, np.mean(model.val_steps.full_loss[loss_epoch_idx]))
 
                 if chain.config.metrics_on:
 
-                    branch.epoch_msg['data'][chain_idx]['main_acc']['models_acc'].insert(model_idx, np.asarray(model.steps.metrics)[loss_epoch_idx])
+                    branch.epoch_msg['data'][chain_idx]['main_acc']['models_acc'].insert(
+                        model_idx, np.asarray(model.steps.metrics)[loss_epoch_idx])
 
                     if chain.config.val_on:
 
-                        branch.epoch_msg['data'][chain_idx]['val_acc']['models_acc'].insert(model_idx, np.asarray(model.val_steps.metrics)[loss_epoch_idx])
+                        branch.epoch_msg['data'][chain_idx]['val_acc']['models_acc'].insert(
+                            model_idx, np.asarray(model.val_steps.metrics)[loss_epoch_idx])
 
-            branch.epoch_msg['data'][chain_idx]['main_acc']['all_acc'] = np.asarray(branch.epoch_msg['data'][chain_idx]['main_acc']['models_acc'])
-            branch.epoch_msg['data'][chain_idx]['val_acc']['all_acc'] = np.asarray(branch.epoch_msg['data'][chain_idx]['val_acc']['models_acc'])
+            branch.epoch_msg['data'][chain_idx]['main_acc']['all_acc'] = np.asarray(
+                branch.epoch_msg['data'][chain_idx]['main_acc']['models_acc'])
+            branch.epoch_msg['data'][chain_idx]['val_acc']['all_acc'] = np.asarray(
+                branch.epoch_msg['data'][chain_idx]['val_acc']['models_acc'])
 
             # -- loop metrics fns -- #
 
@@ -551,7 +580,7 @@ class Gamma():
 
             # --- build body --- #
 
-            body_msg = self.epoch_msg_body(branch,chain,chain_idx,chain_lr)
+            body_msg = self.epoch_msg_body(branch, chain, chain_idx, chain_lr)
 
             branch.epoch_msg['body'] += body_msg
 
