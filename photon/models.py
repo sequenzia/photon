@@ -66,7 +66,6 @@ class Models(tf_Model):
         log_layers_config = args_key_chk(self.gauge.model_args['log_config'], 'log_layers', [])
         log_run_data_config = args_key_chk(self.gauge.model_args['log_config'], 'log_run_data', [])
 
-
         self.log_calls = args_key_chk(log_calls_config, 'main', False)
         self.log_calls_val = args_key_chk(log_calls_config, 'val', False)
 
@@ -151,7 +150,7 @@ class Models(tf_Model):
 
         self.build_model()
 
-        self.build(input_data.shape)
+        # self.build(input_data.shape)
 
         self.gauge.is_model_built = True
 

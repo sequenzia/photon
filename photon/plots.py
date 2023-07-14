@@ -32,7 +32,7 @@ def plot_loss(data):
             line_color=line_colors[col_idx],
             opacity=.75))
 
-    fig.update_yaxes(type="log")
+    # fig.update_yaxes(type="log")
 
     fig.show()
 

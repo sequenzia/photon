@@ -231,7 +231,7 @@ class Gamma():
                     step_data = model.src(inputs=batch_data['inputs'],
                                           training=True,
                                           batch_idx=batch_idx,
-                                          targets=batch_data['targets'],
+                                          targets=batch_data['outputs'],
                                           tracking=batch_data['tracking'])
 
                     # -- save pre model variables to theta -- #
@@ -300,8 +300,12 @@ class Gamma():
 
         targets_config = model.chain.src.data_config['targets']
 
+        # print(batch_data['targets'].shape)
+        # print(batch_data['outputs'].shape)
+
         if step_data['y_true'] is None:
-            step_data['y_true'] = batch_data['targets'][targets_config['true_slice']]
+            step_data['y_true'] = batch_data['outputs'][:,-1,:]
+            # step_data['y_true'] = batch_data['targets'][targets_config['true_slice']]
 
         if step_data['y_tracking'] is None:
             step_data['y_tracking'] = batch_data['targets'][targets_config['tracking_slice']]
@@ -429,8 +433,6 @@ class Gamma():
         # -- increment step_idx -- #
         if model.live.run_type == 'fit':
             model.live.step_idx.assign_add(1)
-
-        # print(f"model.steps.step_loss len -> {len(model.steps.step_loss)}")
 
         return
 

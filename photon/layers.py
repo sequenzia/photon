@@ -12,6 +12,7 @@ from sklearn import preprocessing
 
 from tensorflow.keras import activations, initializers, regularizers, constraints
 
+
 def get_shapes(inputs):
 
     input_shp = []
@@ -31,6 +32,7 @@ def get_shapes(inputs):
 
     return input_shp
 
+
 def get_act(act_fn):
 
     if act_fn == 'tanh':
@@ -48,10 +50,12 @@ def get_act(act_fn):
     if act_fn == 'elu':
         return tf.nn.elu
 
+
 def del_key(data, key):
     if key in data:
         del data[key]
     return data
+
 
 class Layers(tf_Layer):
 
@@ -101,7 +105,8 @@ class Layers(tf_Layer):
             self.reg_layer_nm = self.layer_nm + '_reg'
 
             self.gauge.src.reg_layers[self.reg_layer_nm] = \
-                Reg(self.gauge, layer_nm=self.layer_nm + '_reg', reg_type=self.reg_args['type'], is_child=True, **self.reg_args['args'])
+                Reg(self.gauge, layer_nm=self.layer_nm + '_reg',
+                    reg_type=self.reg_args['type'], is_child=True, **self.reg_args['args'])
 
         # -- add norm  -- #
         if self.norm_args is not None and not self.no_subs:
@@ -110,7 +115,8 @@ class Layers(tf_Layer):
             self.norm_layer_nm = self.gauge.name.lower() + '_' + self.layer_nm + '_norm'
 
             self.gauge.src.norm_layers[self.norm_layer_nm] = \
-                Norm(self.gauge, layer_nm=self.norm_layer_nm, norm_type=self.norm_args['type'], is_child=True, **self.norm_args['args'])
+                Norm(self.gauge, layer_nm=self.norm_layer_nm,
+                     norm_type=self.norm_args['type'], is_child=True, **self.norm_args['args'])
 
         self.logs_on = False
 
@@ -149,7 +155,7 @@ class Layers(tf_Layer):
 
         if self.gauge.is_model_built and self.gauge.src.log_layers and not is_val and not self.no_log:
 
-            if self.gauge.src.log_layers in ['summary','min','shapes']:
+            if self.gauge.src.log_layers in ['summary', 'min', 'shapes']:
                 log_level = 'summary'
             else:
                 log_level = 'full'
@@ -158,7 +164,7 @@ class Layers(tf_Layer):
 
         if self.gauge.is_model_built and self.gauge.src.log_layers_val and is_val and not self.no_log:
 
-            if self.gauge.src.log_layers_val in ['summary','min','shapes']:
+            if self.gauge.src.log_layers_val in ['summary', 'min', 'shapes']:
                 log_level_val = 'summary'
             else:
                 log_level_val = 'full'
@@ -268,6 +274,7 @@ class Layers(tf_Layer):
 
         self.logs[epoch_idx][batch_idx] = _log
 
+
 class Reg(Layers):
 
     def __init__(self, gauge, layer_nm, reg_type, **kwargs):
@@ -295,7 +302,8 @@ class Reg(Layers):
             self.k_layer = tf_layers.GaussianNoise(stddev=self.reg_vals[0], name=self.layer_nm, **kwargs)
 
         if self.reg_type == 'act-reg':
-            self.k_layer = tf_layers.ActivityRegularization(l1=self.reg_vals[0], l2=self.reg_vals[1], name=self.layer_nm, **kwargs)
+            self.k_layer = tf_layers.ActivityRegularization(
+                l1=self.reg_vals[0], l2=self.reg_vals[1], name=self.layer_nm, **kwargs)
 
         return
 
@@ -304,6 +312,7 @@ class Reg(Layers):
         z_output = self.k_layer(inputs=inputs, training=training)
 
         return z_output
+
 
 class Norm(Layers):
 
@@ -337,6 +346,7 @@ class Norm(Layers):
 
         return z_output
 
+
 class Base(Layers):
 
     def __init__(self, gauge, layer_nm, layer, **kwargs):
@@ -354,6 +364,7 @@ class Base(Layers):
     def call(self, inputs, training=None, **kwargs):
 
         return self.k_layer(inputs=inputs, training=training)
+
 
 class DNN(Layers):
 
@@ -373,6 +384,7 @@ class DNN(Layers):
 
     def call(self, inputs, training=None, **kwargs):
         return self.k_layer(inputs=inputs, training=training)
+
 
 class CNN(Layers):
 
@@ -407,7 +419,7 @@ class CNN(Layers):
         return
 
     def call(self, inputs, training=None, **kwargs):
-
+        print(f"{self.layer_nm} -> {inputs.shape} -> {training}")
         return self.k_layer(inputs=inputs, training=training)
 
     def set_args(self, **kwargs):
@@ -433,72 +445,24 @@ class CNN(Layers):
         # -- set args as class variables -- #
 
         for k, v in kwargs.items():
-            setattr(self, k, v )
+            setattr(self, k, v)
 
-        # if 'filters' in kwargs:
-        #     filters = kwargs['filters']
-        #
-        # if 'kernel_size' in kwargs:
-        #     kernel_size = kwargs['kernel_size']
-        #
-        # if 'strides' in kwargs:
-        #     strides = kwargs['strides']
-        #
-        # if 'padding' in kwargs:
-        #     padding = kwargs['padding']
-        #
-        # if 'dilation_rate' in kwargs:
-        #     dilation_rate = kwargs['dilation_rate']
-        #
-        # if 'activation' in kwargs:
-        #     activation = kwargs['activation']
-        #
-        # if 'use_bias' in kwargs:
-        #     use_bias = kwargs['use_bias']
-        #
-        # if 'kernel_initializer' in kwargs:
-        #     kernel_initializer = kwargs['kernel_initializer']
-        #
-        # if 'bias_initializer' in kwargs:
-        #     bias_initializer = kwargs['bias_initializer']
-        #
-        # if 'kernel_regularizer' in kwargs:
-        #     kernel_regularizer = kwargs['kernel_regularizer']
-        #
-        # if 'bias_regularizer' in kwargs:
-        #     bias_regularizer = kwargs['bias_regularizer']
-        #
-        # if 'activity_regularizer' in kwargs:
-        #     activity_regularizer = kwargs['activity_regularizer']
-        #
-        # if 'kernel_constraint' in kwargs:
-        #     kernel_constraint = kwargs['kernel_constraint']
-        #
-        # if 'bias_constraint' in kwargs:
-        #     bias_constraint = kwargs['bias_constraint']
-        #
-        # if 'data_format' in kwargs:
-        #     data_format = kwargs['data_format']
+        return {'filters': filters,
+                'kernel_size': kernel_size,
+                'strides': strides,
+                'padding': padding,
+                'dilation_rate': dilation_rate,
+                'activation': activation,
+                'use_bias': use_bias,
+                'kernel_initializer': kernel_initializer,
+                'bias_initializer': bias_initializer,
+                'kernel_regularizer': kernel_regularizer,
+                'bias_regularizer': bias_regularizer,
+                'activity_regularizer': activity_regularizer,
+                'kernel_constraint': kernel_constraint,
+                'bias_constraint': bias_constraint,
+                'data_format': data_format}
 
-        _args = {
-            'filters': filters,
-            'kernel_size': kernel_size,
-            'strides': strides,
-            'padding': padding,
-            'dilation_rate': dilation_rate,
-            'activation': activation,
-            'use_bias': use_bias,
-            'kernel_initializer': kernel_initializer,
-            'bias_initializer': bias_initializer,
-            'kernel_regularizer': kernel_regularizer,
-            'bias_regularizer': bias_regularizer,
-            'activity_regularizer': activity_regularizer,
-            'kernel_constraint': kernel_constraint,
-            'bias_constraint': bias_constraint,
-            'data_format': data_format
-        }
-
-        return _args
 
 class RNN(Layers):
 
@@ -516,10 +480,10 @@ class RNN(Layers):
         self.mask_on = mask_on
         self.reset_type = reset_type
 
-        i_state_0 = tf.convert_to_tensor(np.ones((260,256), dtype=np.float64) * 3, dtype=tf.float64, name='i_state_0')
-        i_state_1 = tf.convert_to_tensor(np.ones((260,256), dtype=np.float64) * 3, dtype=tf.float64, name='i_state_1')
+        i_state_0 = tf.convert_to_tensor(np.ones((260, 256), dtype=np.float64) * 3, dtype=tf.float64, name='i_state_0')
+        i_state_1 = tf.convert_to_tensor(np.ones((260, 256), dtype=np.float64) * 3, dtype=tf.float64, name='i_state_1')
 
-        self.i_state_vars = [i_state_0,i_state_1]
+        self.i_state_vars = [i_state_0, i_state_1]
 
         self.set_args(**self.rnn_args)
 
@@ -550,10 +514,10 @@ class RNN(Layers):
         if self.return_state:
 
             if len(z_outputs) == 2:
-                z_state  = z_outputs[1]
+                z_state = z_outputs[1]
 
             if len(z_outputs) == 3:
-                z_state  = [z_outputs[1], z_outputs[2]]
+                z_state = [z_outputs[1], z_outputs[2]]
 
             if self.state_out == 0:
                 z_outputs = z_outputs[0]
@@ -567,13 +531,13 @@ class RNN(Layers):
         if self.logs_on:
 
             _log = {'inputs': np_exp(inputs),
-                'state_0_pre': state_0_pre,
-                'state_1_pre': state_1_pre,
-                'state_0_post': state_0_post,
-                'state_1_post': state_1_post,
-                'z_state_0': np_exp(z_state[0]),
-                'z_state_1': np_exp(z_state[1]),
-                'z_outputs': np_exp(z_outputs)}
+                    'state_0_pre': state_0_pre,
+                    'state_1_pre': state_1_pre,
+                    'state_0_post': state_0_post,
+                    'state_1_post': state_1_post,
+                    'z_state_0': np_exp(z_state[0]),
+                    'z_state_1': np_exp(z_state[1]),
+                    'z_outputs': np_exp(z_outputs)}
 
             self.save_layer_log(_log)
 
@@ -669,7 +633,7 @@ class RNN(Layers):
         # -- set args as class variables -- #
 
         for k, v in kwargs.items():
-            setattr(self, k, v )
+            setattr(self, k, v)
 
     def reset_chk(self):
 
@@ -699,6 +663,7 @@ class RNN(Layers):
             self.k_layer.reset_states()
             tf.print(' ----------- EPOCH: reset state ----------- \n\n')
             return
+
 
 class Pool(Layers):
 
@@ -734,10 +699,10 @@ class Pool(Layers):
 
             if not is_global:
                 self.k_layer = tf_layers.AveragePooling1D(name=self.layer_nm,
-                                                         pool_size=self.pool_size,
-                                                         strides=self.strides,
-                                                         padding=self.padding,
-                                                         data_format=self.data_format)
+                                                          pool_size=self.pool_size,
+                                                          strides=self.strides,
+                                                          padding=self.padding,
+                                                          data_format=self.data_format)
 
         if pool_type == 'max':
 
@@ -746,16 +711,17 @@ class Pool(Layers):
 
             if not is_global:
                 self.k_layer = tf_layers.MaxPool1D(name=self.layer_nm,
-                                                  pool_size=self.pool_size,
-                                                  strides=self.strides,
-                                                  padding=self.padding,
-                                                  data_format=self.data_format)
+                                                   pool_size=self.pool_size,
+                                                   strides=self.strides,
+                                                   padding=self.padding,
+                                                   data_format=self.data_format)
 
     def call(self, inputs, training=None, **kwargs):
 
         z_output = self.k_layer(inputs=inputs, training=training)
 
         return z_output
+
 
 class Res(Layers):
 
@@ -819,12 +785,14 @@ class Res(Layers):
             if self.cols_diff > 0:
                 self.dnn_type = 1
                 dnn_args['units'] = self.n_cols_1
-                self.g_layers.append(DNN(self.gauge, layer_nm=self.layer_nm + '_dnn', layer_args=dnn_args, is_child=True))
+                self.g_layers.append(DNN(self.gauge, layer_nm=self.layer_nm +
+                                     '_dnn', layer_args=dnn_args, is_child=True))
 
             if self.cols_diff < 0:
                 self.dnn_type = 2
                 dnn_args['units'] = self.n_cols_2
-                self.g_layers.append(DNN(self.gauge, layer_nm=self.layer_nm + '_dnn', layer_args=dnn_args, is_child=True))
+                self.g_layers.append(DNN(self.gauge, layer_nm=self.layer_nm +
+                                     '_dnn', layer_args=dnn_args, is_child=True))
 
         if self.pool_on:
 
@@ -971,6 +939,7 @@ class Res(Layers):
 
         return z_output
 
+
 class RunData(Layers):
 
     def __init__(self, gauge, layer_nm, rd_type, rd_args, **kwargs):
@@ -991,10 +960,10 @@ class RunData(Layers):
 
             if self.rd_args['weights_on']:
                 self.rd_weights = self.add_weight(name=self.layer_nm + '_weights',
-                                                      shape=(1,),
-                                                      initializer=initializers.RandomUniform(minval=0., maxval=1.),
-                                                      constraint=constraints.NonNeg(),
-                                                      trainable=True)
+                                                  shape=(1,),
+                                                  initializer=initializers.RandomUniform(minval=0., maxval=1.),
+                                                  constraint=constraints.NonNeg(),
+                                                  trainable=True)
             if self.rd_args['bias_on']:
                 self.rd_bias = self.add_weight(name=self.layer_nm + '_bias',
                                                shape=1,
