@@ -1,16 +1,21 @@
+from __future__ import annotations
 from typing import List, Tuple, Dict, Optional, Any
-from photon import Gauge
+
 from photon.utils import np_exp
+from typing import TYPE_CHECKING
 
 import numpy as np
 import tensorflow as tf
 
 from tensorflow import math as tfm
-from tensorflow.keras import layers as tf_layers
-from tensorflow.keras.layers import Layer as tf_Layer
+from tensorflow.python.keras import layers as tf_layers
+from tensorflow.python.keras.layers import Layer as tf_Layer
 from sklearn import preprocessing
 
-from tensorflow.keras import activations, initializers, regularizers, constraints
+from tensorflow.python.keras import activations, initializers, regularizers, constraints
+
+if TYPE_CHECKING:
+    from photon import Gauge
 
 
 def get_shapes(inputs):

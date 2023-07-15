@@ -1,3 +1,4 @@
-from photon.photon import Photon, Networks, Branches, Gauge
-
-from photon.plots import plot_loss
+from photon.photon import Photon
+from photon.networks import Networks
+from photon.trees import Trees
+from photon.branches import Branches

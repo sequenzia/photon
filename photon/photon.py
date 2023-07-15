@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import shelve
 import pathlib
@@ -20,43 +21,6 @@ from photon import metrics, losses, utils
 from photon.gamma import Gamma
 
 
-def get_dataset(data,
-                data_type,
-                batch_size):
-
-    store = data.store[data_type]
-
-    if data.framework == 'tf':
-
-        x_ds = tf.data.Dataset.from_tensor_slices(tf.convert_to_tensor(store['x_bars'], dtype=data.dtype))
-        y_ds = tf.data.Dataset.from_tensor_slices(tf.convert_to_tensor(store['y_bars'], dtype=data.dtype))
-        t_ds = tf.data.Dataset.from_tensor_slices(tf.convert_to_tensor(store['t_bars'], dtype=data.dtype))
-
-        if data.outputs_on:
-            o_ds = tf.data.Dataset.from_tensor_slices(
-                tf.convert_to_tensor(store['model_bars'][data.slice_configs['x_slice']], dtype=data.dtype))
-            return tf.data.Dataset.zip((x_ds, y_ds, t_ds, o_ds)).batch(batch_size)
-        else:
-            return tf.data.Dataset.zip((x_ds, y_ds, t_ds)).batch(batch_size)
-
-    elif data.framework == 'torch':
-
-        x_bars = torch.tensor(store['x_bars'], dtype=torch.float32)
-        y_bars = torch.tensor(store['y_bars'], dtype=torch.float32)
-        t_bars = torch.tensor(store['t_bars'], dtype=torch.float32)
-
-        if data.outputs_on:
-            o_bars = torch.tensor(store['model_bars'][data.slice_configs['x_slice']], dtype=data.dtype)
-            ds = TensorDataset(x_bars, y_bars, t_bars, o_bars)
-        else:
-            ds = TensorDataset(x_bars, y_bars, t_bars)
-
-        return DataLoader(ds, batch_size=batch_size, shuffle=False)
-
-    else:
-        raise ValueError
-
-
 class Photon():
 
     def __init__(self,
@@ -66,12 +30,6 @@ class Photon():
         self.framework = framework
         self.run_dir = run_dir
         self.mod_dir = pathlib.Path(__file__).parent.parent
-
-        self.Networks = Networks
-        self.Trees = Trees
-        self.Branches = Branches
-        self.Chains = Chains
-        self.Gamma = Gamma
 
         self.metrics = metrics.Metrics()
         self.losses = losses.Losses()
@@ -144,1280 +102,1280 @@ class Photon():
         return
 
 
-class Networks():
+# class Networks():
 
-    def __init__(self,
-                 photon_id,
-                 data_dir,
-                 data_fn,
-                 data_res,
-                 data_cols,
-                 x_groups_on,
-                 dirs_on,
-                 diag_on,
-                 msgs_on,
-                 name=None,
-                 photon=None,
-                 float_x=32):
+#     def __init__(self,
+#                  photon_id,
+#                  data_dir,
+#                  data_fn,
+#                  data_res,
+#                  data_cols,
+#                  x_groups_on,
+#                  dirs_on,
+#                  diag_on,
+#                  msgs_on,
+#                  name=None,
+#                  photon=None,
+#                  float_x=32):
 
-        self.is_built = False
+#         self.is_built = False
 
-        self.photon_load_id = photon_id
+#         self.photon_load_id = photon_id
 
-        if name is None:
-            self.name = 'Photon Network'
-        else:
-            self.name = name
+#         if name is None:
+#             self.name = 'Photon Network'
+#         else:
+#             self.name = name
 
-        if photon is None:
-            self.photon = Photon()
-        else:
-            self.photon = photon
+#         if photon is None:
+#             self.photon = Photon()
+#         else:
+#             self.photon = photon
 
-        self.photon.setup_photon(self.photon_load_id)
+#         self.photon.setup_photon(self.photon_load_id)
 
-        self.framework = photon.framework
+#         self.framework = photon.framework
 
-        self.gamma = self.photon.Gamma(self)
+#         self.gamma = self.photon.Gamma(self)
 
-        self.x_groups_on = x_groups_on
+#         self.x_groups_on = x_groups_on
 
-        self.dirs_on = dirs_on
+#         self.dirs_on = dirs_on
 
-        self.data = None
-        self.data_dir = data_dir
-        self.data_fn = data_fn
-        self.data_res = data_res
-        self.data_cols = data_cols
+#         self.data = None
+#         self.data_dir = data_dir
+#         self.data_fn = data_fn
+#         self.data_res = data_res
+#         self.data_cols = data_cols
 
-        self.diag_on = diag_on
-        self.msgs_on = msgs_on
+#         self.diag_on = diag_on
+#         self.msgs_on = msgs_on
 
-        self.msgs_on['epochs'] = False
+#         self.msgs_on['epochs'] = False
 
-        if float_x == 16:
-            self.float_x = 'float16'
-            self.dtype = np.float16
-            self.framework_dtype = torch.float16 if self.framework == 'torch' else tf.float16
+#         if float_x == 16:
+#             self.float_x = 'float16'
+#             self.dtype = np.float16
+#             self.framework_dtype = torch.float16 if self.framework == 'torch' else tf.float16
 
-        if float_x == 32:
-            self.float_x = 'float32'
-            self.dtype = np.float32
-            self.framework_dtype = torch.float32 if self.framework == 'torch' else tf.float32
+#         if float_x == 32:
+#             self.float_x = 'float32'
+#             self.dtype = np.float32
+#             self.framework_dtype = torch.float32 if self.framework == 'torch' else tf.float32
 
-        if float_x == 64:
-            self.float_x = 'float64'
-            self.dtype = np.float64
-            self.framework_dtype = torch.float64 if self.framework == 'torch' else tf.float64
+#         if float_x == 64:
+#             self.float_x = 'float64'
+#             self.dtype = np.float64
+#             self.framework_dtype = torch.float64 if self.framework == 'torch' else tf.float64
 
-        # -- load data -- #
-        self.load_data()
+#         # -- load data -- #
+#         self.load_data()
 
-        self.n_trees = 0
-        self.n_branches = 0
-        self.n_chains = 0
-        self.n_runs = 0
+#         self.n_trees = 0
+#         self.n_branches = 0
+#         self.n_chains = 0
+#         self.n_runs = 0
 
-        self.trees = []
-        self.branches = []
-        self.chains = []
-        self.runs = []
+#         self.trees = []
+#         self.branches = []
+#         self.chains = []
+#         self.runs = []
 
-    def add_tree(self, tree):
+#     def add_tree(self, tree):
 
-        self.trees.append(tree)
-        self.n_trees += 1
+#         self.trees.append(tree)
+#         self.n_trees += 1
 
-        return self.n_trees - 1, self.data
+#         return self.n_trees - 1, self.data
 
-    def add_branch(self, branch):
+#     def add_branch(self, branch):
 
-        self.branches.append(branch)
-        self.n_branches += 1
+#         self.branches.append(branch)
+#         self.n_branches += 1
 
-        return self.n_branches - 1
+#         return self.n_branches - 1
 
-    def load_data(self):
+#     def load_data(self):
 
-        self.data_fp = self.data_dir + '/' + self.data_fn + '.parquet'
+#         self.data_fp = self.data_dir + '/' + self.data_fn + '.parquet'
 
-        self.data = self.Data(self.framework, self.framework_dtype)
+#         self.data = self.Data(self.framework, self.framework_dtype)
 
-        self.setup_cols(self.data_cols)
+#         self.setup_cols(self.data_cols)
 
-        all_cols = self.data.all_cols + ['is_close']
+#         all_cols = self.data.all_cols + ['is_close']
 
-        self.data.full_bars = pq.read_table(self.data_fp).to_pandas().astype(self.dtype)[all_cols]
+#         self.data.full_bars = pq.read_table(self.data_fp).to_pandas().astype(self.dtype)[all_cols]
 
-        return
+#         return
 
-    def setup_cols(self, data_cols):
+#     def setup_cols(self, data_cols):
 
-        # ------- x_cols ------- #
+#         # ------- x_cols ------- #
 
-        self.data.x_cols = list(data_cols['x_cols'].keys())
+#         self.data.x_cols = list(data_cols['x_cols'].keys())
 
-        # ------- c_cols ------- #
+#         # ------- c_cols ------- #
 
-        if data_cols['c_cols'] is not None:
-            self.data.c_cols = list(data_cols['c_cols'].keys())
+#         if data_cols['c_cols'] is not None:
+#             self.data.c_cols = list(data_cols['c_cols'].keys())
 
-        if data_cols['c_cols'] is None:
-            self.data.c_cols = []
+#         if data_cols['c_cols'] is None:
+#             self.data.c_cols = []
 
-        # ------- y_cols ------- #
+#         # ------- y_cols ------- #
 
-        if data_cols['y_cols'] is not None:
-            self.data.y_cols = list(data_cols['y_cols'].keys())
+#         if data_cols['y_cols'] is not None:
+#             self.data.y_cols = list(data_cols['y_cols'].keys())
 
-        if data_cols['y_cols'] is None:
-            self.data.y_cols = []
+#         if data_cols['y_cols'] is None:
+#             self.data.y_cols = []
 
-        # ------- t_cols ------- #
+#         # ------- t_cols ------- #
 
-        if data_cols['t_cols'] is not None:
-            self.data.t_cols = list(data_cols['t_cols'].keys())
+#         if data_cols['t_cols'] is not None:
+#             self.data.t_cols = list(data_cols['t_cols'].keys())
 
-        if data_cols['t_cols'] is None:
-            self.data.t_cols = []
+#         if data_cols['t_cols'] is None:
+#             self.data.t_cols = []
 
-        self.data.f_cols = data_cols['f_cols']
+#         self.data.f_cols = data_cols['f_cols']
 
-        self.data.n_x_cols = len(self.data.x_cols)
-        self.data.n_c_cols = len(self.data.c_cols)
-        self.data.n_y_cols = len(self.data.y_cols)
-        self.data.n_t_cols = len(self.data.t_cols)
+#         self.data.n_x_cols = len(self.data.x_cols)
+#         self.data.n_c_cols = len(self.data.c_cols)
+#         self.data.n_y_cols = len(self.data.y_cols)
+#         self.data.n_t_cols = len(self.data.t_cols)
 
-        # -- x cols -- #
-        for i in range(self.data.n_x_cols):
+#         # -- x cols -- #
+#         for i in range(self.data.n_x_cols):
 
-            _col = self.data.x_cols[i]
-            _base = data_cols['x_cols'][_col]
+#             _col = self.data.x_cols[i]
+#             _base = data_cols['x_cols'][_col]
 
-            self.data.agg_data[_col] = _base['seq_agg']
+#             self.data.agg_data[_col] = _base['seq_agg']
 
-            if _base['ofs_on']:
-                self.data.ofs_data['x'].append(_col)
+#             if _base['ofs_on']:
+#                 self.data.ofs_data['x'].append(_col)
 
-            if not self.x_groups_on:
-                if _base['nor_on']:
-                    self.data.nor_data['x'].append(_col)
+#             if not self.x_groups_on:
+#                 if _base['nor_on']:
+#                     self.data.nor_data['x'].append(_col)
 
-        # -- c cols -- #
-        if data_cols['c_cols'] is not None:
+#         # -- c cols -- #
+#         if data_cols['c_cols'] is not None:
 
-            for i in range(self.data.n_c_cols):
+#             for i in range(self.data.n_c_cols):
 
-                _col = self.data.c_cols[i]
-                _base = data_cols['c_cols'][_col]
+#                 _col = self.data.c_cols[i]
+#                 _base = data_cols['c_cols'][_col]
 
-                self.data.agg_data[_col] = _base['seq_agg']
+#                 self.data.agg_data[_col] = _base['seq_agg']
 
-                if _base['ofs_on']:
-                    self.data.ofs_data['c'].append(_col)
+#                 if _base['ofs_on']:
+#                     self.data.ofs_data['c'].append(_col)
 
-                if _base['nor_on']:
-                    self.data.nor_data['c'].append(_col)
+#                 if _base['nor_on']:
+#                     self.data.nor_data['c'].append(_col)
 
-        # -- y cols -- #
-        if data_cols['y_cols'] is not None:
+#         # -- y cols -- #
+#         if data_cols['y_cols'] is not None:
 
-            for i in range(self.data.n_y_cols):
+#             for i in range(self.data.n_y_cols):
 
-                _col = self.data.y_cols[i]
-                _base = data_cols['y_cols'][_col]
+#                 _col = self.data.y_cols[i]
+#                 _base = data_cols['y_cols'][_col]
 
-                self.data.agg_data[_col] = _base['seq_agg']
+#                 self.data.agg_data[_col] = _base['seq_agg']
 
-                if _base['ofs_on']:
-                    self.data.ofs_data['y'].append(_col)
+#                 if _base['ofs_on']:
+#                     self.data.ofs_data['y'].append(_col)
 
-                if _base['nor_on']:
-                    self.data.nor_data['y'].append(_col)
+#                 if _base['nor_on']:
+#                     self.data.nor_data['y'].append(_col)
 
-        # -- t cols -- #
-        for i in range(self.data.n_t_cols):
+#         # -- t cols -- #
+#         for i in range(self.data.n_t_cols):
 
-            _col = self.data.t_cols[i]
-            _base = data_cols['t_cols'][_col]
+#             _col = self.data.t_cols[i]
+#             _base = data_cols['t_cols'][_col]
 
-            self.data.agg_data[_col] = _base['seq_agg']
+#             self.data.agg_data[_col] = _base['seq_agg']
 
-            if _base['ofs_on']:
-                self.data.ofs_data['t'].append(_col)
+#             if _base['ofs_on']:
+#                 self.data.ofs_data['t'].append(_col)
 
-            if _base['nor_on']:
-                self.data.nor_data['t'].append(_col)
+#             if _base['nor_on']:
+#                 self.data.nor_data['t'].append(_col)
 
-        if self.x_groups_on:
-            self.data.x_groups = self.setup_x_groups(data_cols['x_cols'])
+#         if self.x_groups_on:
+#             self.data.x_groups = self.setup_x_groups(data_cols['x_cols'])
 
-        self.data.close_cols = ['bar_idx',
-                                'day_idx',
-                                'BAR_TP']
+#         self.data.close_cols = ['bar_idx',
+#                                 'day_idx',
+#                                 'BAR_TP']
 
-        self.data.all_cols = self.data.x_cols + \
-            self.data.c_cols + self.data.y_cols + self.data.t_cols
+#         self.data.all_cols = self.data.x_cols + \
+#             self.data.c_cols + self.data.y_cols + self.data.t_cols
 
-        x_ed = self.data.n_x_cols
-        c_st = x_ed
-        c_ed = c_st + self.data.n_c_cols
-        y_st = c_ed
-        y_ed = y_st + self.data.n_y_cols
-        t_st = y_ed
+#         x_ed = self.data.n_x_cols
+#         c_st = x_ed
+#         c_ed = c_st + self.data.n_c_cols
+#         y_st = c_ed
+#         y_ed = y_st + self.data.n_y_cols
+#         t_st = y_ed
 
-        self.data.slice_configs = {'x_slice': np.s_[..., :x_ed],
-                                   'c_slice': np.s_[..., c_st:c_ed],
-                                   'y_slice': np.s_[..., y_st:y_ed],
-                                   't_slice': np.s_[..., t_st:]}
+#         self.data.slice_configs = {'x_slice': np.s_[..., :x_ed],
+#                                    'c_slice': np.s_[..., c_st:c_ed],
+#                                    'y_slice': np.s_[..., y_st:y_ed],
+#                                    't_slice': np.s_[..., t_st:]}
 
-    def setup_x_groups(self, x_cols):
+#     def setup_x_groups(self, x_cols):
 
-        pr_group = []
+#         pr_group = []
 
-        for k, v in x_cols.items():
+#         for k, v in x_cols.items():
 
-            for k2, v2 in v.items():
+#             for k2, v2 in v.items():
 
-                if k2 == 'x_group' and v2 == 'pr':
-                    pr_group.append(k)
+#                 if k2 == 'x_group' and v2 == 'pr':
+#                     pr_group.append(k)
 
-        vol_group = []
+#         vol_group = []
 
-        for k, v in x_cols.items():
+#         for k, v in x_cols.items():
 
-            for k2, v2 in v.items():
+#             for k2, v2 in v.items():
 
-                if k2 == 'x_group' and v2 == 'vol':
-                    vol_group.append(k)
+#                 if k2 == 'x_group' and v2 == 'vol':
+#                     vol_group.append(k)
 
-        atr_group = []
+#         atr_group = []
 
-        for k, v in x_cols.items():
+#         for k, v in x_cols.items():
 
-            for k2, v2 in v.items():
+#             for k2, v2 in v.items():
 
-                if k2 == 'x_group' and v2 == 'atr':
-                    atr_group.append(k)
+#                 if k2 == 'x_group' and v2 == 'atr':
+#                     atr_group.append(k)
 
-        roc_group = []
+#         roc_group = []
 
-        for k, v in x_cols.items():
+#         for k, v in x_cols.items():
 
-            for k2, v2 in v.items():
+#             for k2, v2 in v.items():
 
-                if k2 == 'x_group' and v2 == 'roc':
-                    roc_group.append(k)
+#                 if k2 == 'x_group' and v2 == 'roc':
+#                     roc_group.append(k)
 
-        zsc_group = []
+#         zsc_group = []
 
-        for k, v in x_cols.items():
+#         for k, v in x_cols.items():
 
-            for k2, v2 in v.items():
+#             for k2, v2 in v.items():
 
-                if k2 == 'x_group' and v2 == 'zsc':
-                    zsc_group.append(k)
+#                 if k2 == 'x_group' and v2 == 'zsc':
+#                     zsc_group.append(k)
 
-        return {'pr_group': pr_group,
-                'vol_group': vol_group,
-                'atr_group': atr_group,
-                'roc_group': roc_group,
-                'zsc_group': zsc_group}
+#         return {'pr_group': pr_group,
+#                 'vol_group': vol_group,
+#                 'atr_group': atr_group,
+#                 'roc_group': roc_group,
+#                 'zsc_group': zsc_group}
 
-    @dataclass
-    class Data:
+#     @dataclass
+#     class Data:
 
-        framework: str
-        dtype: Union[tf.DType, torch.dtype]
+#         framework: str
+#         dtype: Union[tf.DType, torch.dtype]
 
-        x_cols: List = field(default_factory=lambda: [[]])
-        c_cols: List = field(default_factory=lambda: [[]])
-        y_cols: List = field(default_factory=lambda: [[]])
-        t_cols: List = field(default_factory=lambda: [[]])
+#         x_cols: List = field(default_factory=lambda: [[]])
+#         c_cols: List = field(default_factory=lambda: [[]])
+#         y_cols: List = field(default_factory=lambda: [[]])
+#         t_cols: List = field(default_factory=lambda: [[]])
 
-        close_cols: List = field
-        all_cols: List = field(default_factory=lambda: [[]])
+#         close_cols: List = field
+#         all_cols: List = field(default_factory=lambda: [[]])
 
-        n_x_cols: List = 0
-        n_c_cols: List = 0
-        n_y_cols: List = 0
-        n_t_cols: List = 0
+#         n_x_cols: List = 0
+#         n_c_cols: List = 0
+#         n_y_cols: List = 0
+#         n_t_cols: List = 0
 
-        agg_data: Dict = field(default_factory=lambda: {})
+#         agg_data: Dict = field(default_factory=lambda: {})
 
-        ofs_data: List = field(default_factory=lambda: {
-            'x': [],
-            'c': [],
-            'y': [],
-            't': []})
+#         ofs_data: List = field(default_factory=lambda: {
+#             'x': [],
+#             'c': [],
+#             'y': [],
+#             't': []})
 
-        nor_data: List = field(default_factory=lambda: {
-            'x': [],
-            'c': [],
-            'y': [],
-            't': []})
+#         nor_data: List = field(default_factory=lambda: {
+#             'x': [],
+#             'c': [],
+#             'y': [],
+#             't': []})
 
-        rank: int = 2
+#         rank: int = 2
 
-        seq_on: bool = False
+#         seq_on: bool = False
 
-        full_bars: pd.DataFrame = field(init=False)
+#         full_bars: pd.DataFrame = field(init=False)
 
 
-class Trees():
+# class Trees():
 
-    def __init__(self,
-                 batch_size,
-                 train_days,
-                 test_days,
-                 val_days,
-                 seq_days,
-                 seq_len,
-                 seq_agg,
-                 test_on,
-                 val_on,
-                 masking,
-                 shuffle,
-                 preproc,
-                 outputs_on,
-                 seed,
-                 save_raw=True,
-                 name=None,
-                 samples_pd=None,
-                 photon=None,
-                 network=None,
-                 network_config=None):
+#     def __init__(self,
+#                  batch_size,
+#                  train_days,
+#                  test_days,
+#                  val_days,
+#                  seq_days,
+#                  seq_len,
+#                  seq_agg,
+#                  test_on,
+#                  val_on,
+#                  masking,
+#                  shuffle,
+#                  preproc,
+#                  outputs_on,
+#                  seed,
+#                  save_raw=True,
+#                  name=None,
+#                  samples_pd=None,
+#                  photon=None,
+#                  network=None,
+#                  network_config=None):
 
-        self.is_built = False
+#         self.is_built = False
 
-        if network is None:
-            self.network = Networks(photon=photon, **network_config)
-        else:
-            self.network = network
+#         if network is None:
+#             self.network = Networks(photon=photon, **network_config)
+#         else:
+#             self.network = network
 
-        if name is None:
-            self.name = 'Photon Tree'
-        else:
-            self.name = name
+#         if name is None:
+#             self.name = 'Photon Tree'
+#         else:
+#             self.name = name
 
-        self.val_on = val_on
-        self.test_on = test_on
+#         self.val_on = val_on
+#         self.test_on = test_on
 
-        self.n_branches = 0
-        self.n_chains = 0
+#         self.n_branches = 0
+#         self.n_chains = 0
 
-        self.branches = []
-        self.chains = []
+#         self.branches = []
+#         self.chains = []
 
-        self.tree_idx, self.data = self.network.add_tree(self)
+#         self.tree_idx, self.data = self.network.add_tree(self)
 
-        self.data.seq_days = seq_days
-        self.data.seq_len = seq_len
-        self.data.seq_agg = seq_agg
-        self.data.seq_depth = seq_len
-        self.data.res = self.network.data_res
+#         self.data.seq_days = seq_days
+#         self.data.seq_len = seq_len
+#         self.data.seq_agg = seq_agg
+#         self.data.seq_depth = seq_len
+#         self.data.res = self.network.data_res
 
-        self.data.train_days = train_days
-        self.data.test_days = test_days
-        self.data.val_days = val_days
+#         self.data.train_days = train_days
+#         self.data.test_days = test_days
+#         self.data.val_days = val_days
 
-        self.data.masking = masking
+#         self.data.masking = masking
 
-        self.data.shuffle = shuffle
-        self.data.preproc = preproc
-        self.data.outputs_on = outputs_on
-        self.data.seed = seed
-        self.data.save_raw = save_raw
+#         self.data.shuffle = shuffle
+#         self.data.preproc = preproc
+#         self.data.outputs_on = outputs_on
+#         self.data.seed = seed
+#         self.data.save_raw = save_raw
 
-        self.data.batch_size = batch_size
+#         self.data.batch_size = batch_size
 
-        if samples_pd is None:
-            self.data.samples_pd = int(23400 / self.data.res)
-        else:
-            self.data.samples_pd = samples_pd
+#         if samples_pd is None:
+#             self.data.samples_pd = int(23400 / self.data.res)
+#         else:
+#             self.data.samples_pd = samples_pd
 
-        if self.data.seq_days:
-            self.data.seq_on = True
+#         if self.data.seq_days:
+#             self.data.seq_on = True
 
-        self.datasets = {'train': None,
-                         'val': None,
-                         'test': None}
+#         self.datasets = {'train': None,
+#                          'val': None,
+#                          'test': None}
 
-    def load_data(self):
+#     def load_data(self):
 
-        self.data.preproc_trans = {
-            'train': {'x_cols': None,
-                      'c_cols': None,
-                      'y_cols': None,
-                      't_cols': None,
-                      'pr_cols': None,
-                      'vol_cols': None,
-                      'atr_cols': None,
-                      'roc_cols': None,
-                      'zsc_cols': None},
-            'test': {'y_cols': None,
-                     't_cols': None},
-            'val': {'y_cols': None,
-                    't_cols': None}}
+#         self.data.preproc_trans = {
+#             'train': {'x_cols': None,
+#                       'c_cols': None,
+#                       'y_cols': None,
+#                       't_cols': None,
+#                       'pr_cols': None,
+#                       'vol_cols': None,
+#                       'atr_cols': None,
+#                       'roc_cols': None,
+#                       'zsc_cols': None},
+#             'test': {'y_cols': None,
+#                      't_cols': None},
+#             'val': {'y_cols': None,
+#                     't_cols': None}}
 
-        self.data.store = self.create_store()
+#         self.data.store = self.create_store()
 
-        # -- setup data -- #
-        self.setup_data()
+#         # -- setup data -- #
+#         self.setup_data()
 
-        self.types_on = ['train']
+#         self.types_on = ['train']
 
-        if self.val_on:
-            self.types_on.append('val')
+#         if self.val_on:
+#             self.types_on.append('val')
 
-        if self.test_on:
-            self.types_on.append('test')
+#         if self.test_on:
+#             self.types_on.append('test')
 
-        # -- split bars -- #
-        self.split_bars(self.types_on)
+#         # -- split bars -- #
+#         self.split_bars(self.types_on)
 
-        # -- loop types -- #
-        for data_type in self.types_on:
-            self.setup_stores(data_type)
-            self.pre_build_datasets(data_type, 'model_bars', 'data_ds')
+#         # -- loop types -- #
+#         for data_type in self.types_on:
+#             self.setup_stores(data_type)
+#             self.pre_build_datasets(data_type, 'model_bars', 'data_ds')
 
-        return
+#         return
 
-    def create_store(self):
-        return {'train': {'close_bars': None,
-                          'model_bars': None,
-                          'x_bars': None,
-                          'y_bars': None,
-                          'c_bars': None,
-                          't_bars': None,
-                          'data_ds': None,
-                          'batch_data': None,
-                          'input_shp': None,
-                          'n_batches': None,
-                          'raw': {'full_bars': None,
-                                  'x_bars': None,
-                                  'y_bars': None,
-                                  'c_bars': None,
-                                  't_bars': None,
-                                  'data_ds': None},
-                          'config': {
-                              'batch_size': self.data.batch_size,
-                              'n_days': self.data.train_days,
-                              'n_batches': 0,
-                              'n_steps': 0,
-                              'n_samples': 0,
-                              'n_calls': 0,
-                              'masks': {'blocks': {'all_cols': [],
-                                                   'x_cols': [],
-                                                   'y_cols': [],
-                                                   't_cols': []}}}},
-                'test': {'close_bars': None,
-                         'model_bars': None,
-                         'data_ds': None,
-                         'batch_data': None,
-                         'input_shp': None,
-                         'n_batches': None,
-                         'raw': {'full_bars': None,
-                                 'x_bars': None,
-                                 'y_bars': None,
-                                 'c_bars': None,
-                                 't_bars': None,
-                                 'data_ds': None},
-                         'config': {
-                             'batch_size': self.data.batch_size,
-                             'n_days': self.data.test_days,
-                             'n_batches': 0,
-                             'n_steps': 0,
-                             'n_samples': 0,
-                             'n_calls': 0,
-                             'masks': {'blocks': {'all_cols': [],
-                                                  'x_cols': [],
-                                                  'y_cols': [],
-                                                  't_cols': []}}}},
-                'val': {'close_bars': None,
-                        'model_bars': None,
-                        'data_ds': None,
-                        'batch_data': None,
-                        'input_shp': None,
-                        'n_batches': None,
-                        'raw': {'full_bars': None,
-                                'x_bars': None,
-                                'y_bars': None,
-                                'c_bars': None,
-                                't_bars': None,
-                                'data_ds': None},
-                        'config': {
-                            'batch_size': self.data.batch_size,
-                            'n_days': self.data.val_days,
-                            'n_batches': 0,
-                            'n_steps': 0,
-                            'n_samples': 0,
-                            'n_calls': 0,
-                            'masks': {'blocks': {'all_cols': [],
-                                                 'x_cols': [],
-                                                 'y_cols': [],
-                                                 't_cols': []}}}}}
+#     def create_store(self):
+#         return {'train': {'close_bars': None,
+#                           'model_bars': None,
+#                           'x_bars': None,
+#                           'y_bars': None,
+#                           'c_bars': None,
+#                           't_bars': None,
+#                           'data_ds': None,
+#                           'batch_data': None,
+#                           'input_shp': None,
+#                           'n_batches': None,
+#                           'raw': {'full_bars': None,
+#                                   'x_bars': None,
+#                                   'y_bars': None,
+#                                   'c_bars': None,
+#                                   't_bars': None,
+#                                   'data_ds': None},
+#                           'config': {
+#                               'batch_size': self.data.batch_size,
+#                               'n_days': self.data.train_days,
+#                               'n_batches': 0,
+#                               'n_steps': 0,
+#                               'n_samples': 0,
+#                               'n_calls': 0,
+#                               'masks': {'blocks': {'all_cols': [],
+#                                                    'x_cols': [],
+#                                                    'y_cols': [],
+#                                                    't_cols': []}}}},
+#                 'test': {'close_bars': None,
+#                          'model_bars': None,
+#                          'data_ds': None,
+#                          'batch_data': None,
+#                          'input_shp': None,
+#                          'n_batches': None,
+#                          'raw': {'full_bars': None,
+#                                  'x_bars': None,
+#                                  'y_bars': None,
+#                                  'c_bars': None,
+#                                  't_bars': None,
+#                                  'data_ds': None},
+#                          'config': {
+#                              'batch_size': self.data.batch_size,
+#                              'n_days': self.data.test_days,
+#                              'n_batches': 0,
+#                              'n_steps': 0,
+#                              'n_samples': 0,
+#                              'n_calls': 0,
+#                              'masks': {'blocks': {'all_cols': [],
+#                                                   'x_cols': [],
+#                                                   'y_cols': [],
+#                                                   't_cols': []}}}},
+#                 'val': {'close_bars': None,
+#                         'model_bars': None,
+#                         'data_ds': None,
+#                         'batch_data': None,
+#                         'input_shp': None,
+#                         'n_batches': None,
+#                         'raw': {'full_bars': None,
+#                                 'x_bars': None,
+#                                 'y_bars': None,
+#                                 'c_bars': None,
+#                                 't_bars': None,
+#                                 'data_ds': None},
+#                         'config': {
+#                             'batch_size': self.data.batch_size,
+#                             'n_days': self.data.val_days,
+#                             'n_batches': 0,
+#                             'n_steps': 0,
+#                             'n_samples': 0,
+#                             'n_calls': 0,
+#                             'masks': {'blocks': {'all_cols': [],
+#                                                  'x_cols': [],
+#                                                  'y_cols': [],
+#                                                  't_cols': []}}}}}
 
-    def setup_data(self):
+#     def setup_data(self):
 
-        if self.data.seq_agg > 0:
-            self.data.seq_depth = int(self.data.seq_len / self.data.seq_agg)
+#         if self.data.seq_agg > 0:
+#             self.data.seq_depth = int(self.data.seq_len / self.data.seq_agg)
 
-        if 'c_cols' in self.data.f_cols:
-            self.data.input_shape = (
-                self.data.seq_depth, self.data.n_x_cols + self.data.n_c_cols)
+#         if 'c_cols' in self.data.f_cols:
+#             self.data.input_shape = (
+#                 self.data.seq_depth, self.data.n_x_cols + self.data.n_c_cols)
 
-        if 'c_cols' not in self.data.f_cols:
-            self.data.input_shape = (self.data.seq_depth, self.data.n_x_cols)
+#         if 'c_cols' not in self.data.f_cols:
+#             self.data.input_shape = (self.data.seq_depth, self.data.n_x_cols)
 
-        self.data.targets_shape = (self.data.seq_depth, self.data.n_y_cols)
-        self.data.tracking_shape = (self.data.seq_depth, self.data.n_t_cols)
+#         self.data.targets_shape = (self.data.seq_depth, self.data.n_y_cols)
+#         self.data.tracking_shape = (self.data.seq_depth, self.data.n_t_cols)
 
-    def split_bars(self, _types):
+#     def split_bars(self, _types):
 
-        train_days = self.data.store['train']['config']['n_days']
-        test_days = self.data.store['test']['config']['n_days']
-        val_days = self.data.store['val']['config']['n_days']
+#         train_days = self.data.store['train']['config']['n_days']
+#         test_days = self.data.store['test']['config']['n_days']
+#         val_days = self.data.store['val']['config']['n_days']
 
-        load_days = train_days + test_days + val_days
+#         load_days = train_days + test_days + val_days
 
-        self.data.close_bars = self.data.full_bars[self.data.full_bars['is_close']
-                                                   == True][self.data.close_cols].copy()
+#         self.data.close_bars = self.data.full_bars[self.data.full_bars['is_close']
+#                                                    == True][self.data.close_cols].copy()
 
-        max_days = self.data.full_bars['day_idx'].max()
+#         max_days = self.data.full_bars['day_idx'].max()
 
-        full_base = max_days - load_days - 2
+#         full_base = max_days - load_days - 2
 
-        train_st_day = full_base
-        train_ed_day = train_st_day + train_days
+#         train_st_day = full_base
+#         train_ed_day = train_st_day + train_days
 
-        test_st_day = train_ed_day + 1
+#         test_st_day = train_ed_day + 1
 
-        if 'test' in _types:
-            test_ed_day = test_st_day + test_days
+#         if 'test' in _types:
+#             test_ed_day = test_st_day + test_days
 
-        if 'test' not in _types:
-            test_ed_day = test_st_day + 1
+#         if 'test' not in _types:
+#             test_ed_day = test_st_day + 1
 
-        if 'val' in _types:
-            val_st_day = test_ed_day + 1
-            val_ed_day = val_st_day + val_days
+#         if 'val' in _types:
+#             val_st_day = test_ed_day + 1
+#             val_ed_day = val_st_day + val_days
 
-        # --- reduce full bars by number of days --- #
-        self.data.store['train']['full_bars'] = \
-            self.data.full_bars[(self.data.full_bars['day_idx'] >= (train_st_day - self.data.seq_days)) &
-                                (self.data.full_bars['day_idx'] < train_ed_day)].copy()
+#         # --- reduce full bars by number of days --- #
+#         self.data.store['train']['full_bars'] = \
+#             self.data.full_bars[(self.data.full_bars['day_idx'] >= (train_st_day - self.data.seq_days)) &
+#                                 (self.data.full_bars['day_idx'] < train_ed_day)].copy()
 
-        if 'test' in _types:
-            self.data.store['test']['full_bars'] = \
-                self.data.full_bars[(self.data.full_bars['day_idx'] >= (test_st_day - self.data.seq_days)) &
-                                    (self.data.full_bars['day_idx'] < test_ed_day)].copy()
+#         if 'test' in _types:
+#             self.data.store['test']['full_bars'] = \
+#                 self.data.full_bars[(self.data.full_bars['day_idx'] >= (test_st_day - self.data.seq_days)) &
+#                                     (self.data.full_bars['day_idx'] < test_ed_day)].copy()
 
-        if 'val' in _types:
-            self.data.store['val']['full_bars'] = \
-                self.data.full_bars[(self.data.full_bars['day_idx'] >= (val_st_day - self.data.seq_days)) &
-                                    (self.data.full_bars['day_idx'] < val_ed_day)].copy()
+#         if 'val' in _types:
+#             self.data.store['val']['full_bars'] = \
+#                 self.data.full_bars[(self.data.full_bars['day_idx'] >= (val_st_day - self.data.seq_days)) &
+#                                     (self.data.full_bars['day_idx'] < val_ed_day)].copy()
 
-        # --- reduce close bars by number of days --- #
+#         # --- reduce close bars by number of days --- #
 
-        self.data.store['train']['close_bars'] = \
-            self.data.close_bars[(self.data.close_bars['day_idx'] >= train_st_day) &
-                                 (self.data.close_bars['day_idx'] < train_ed_day)].copy()
+#         self.data.store['train']['close_bars'] = \
+#             self.data.close_bars[(self.data.close_bars['day_idx'] >= train_st_day) &
+#                                  (self.data.close_bars['day_idx'] < train_ed_day)].copy()
 
-        if 'test' in _types:
-            self.data.store['test']['close_bars'] = \
-                self.data.close_bars[(self.data.close_bars['day_idx'] >= test_st_day) &
-                                     (self.data.close_bars['day_idx'] < test_ed_day)].copy()
+#         if 'test' in _types:
+#             self.data.store['test']['close_bars'] = \
+#                 self.data.close_bars[(self.data.close_bars['day_idx'] >= test_st_day) &
+#                                      (self.data.close_bars['day_idx'] < test_ed_day)].copy()
 
-        if 'val' in _types:
-            self.data.store['val']['close_bars'] = \
-                self.data.close_bars[(self.data.close_bars['day_idx'] >= val_st_day) &
-                                     (self.data.close_bars['day_idx'] < val_ed_day)].copy()
+#         if 'val' in _types:
+#             self.data.store['val']['close_bars'] = \
+#                 self.data.close_bars[(self.data.close_bars['day_idx'] >= val_st_day) &
+#                                      (self.data.close_bars['day_idx'] < val_ed_day)].copy()
 
-    def setup_stores(self, data_type):
+#     def setup_stores(self, data_type):
 
-        self.data.store[data_type]['config']['n_samples'] = \
-            self.data.samples_pd * \
-            self.data.store[data_type]['config']['n_days']
+#         self.data.store[data_type]['config']['n_samples'] = \
+#             self.data.samples_pd * \
+#             self.data.store[data_type]['config']['n_days']
 
-        full_bars = self.data.store[data_type]['full_bars']
+#         full_bars = self.data.store[data_type]['full_bars']
 
-        # -- aggregate full bars -- #
-        if self.data.seq_agg > 1:
-            full_bars = self.agg_bars(full_bars)
+#         # -- aggregate full bars -- #
+#         if self.data.seq_agg > 1:
+#             full_bars = self.agg_bars(full_bars)
 
-        # -- normalise full bars -- #
-        full_bars = self.normalize_bars(full_bars)
+#         # -- normalise full bars -- #
+#         full_bars = self.normalize_bars(full_bars)
 
-        if self.data.seq_days:
-            self.data.store[data_type]['model_bars'] = self.seq_bars(
-                full_bars, data_type)
-        else:
-            self.data.store[data_type]['model_bars'] = full_bars.to_numpy()
+#         if self.data.seq_days:
+#             self.data.store[data_type]['model_bars'] = self.seq_bars(
+#                 full_bars, data_type)
+#         else:
+#             self.data.store[data_type]['model_bars'] = full_bars.to_numpy()
 
-        self.data.store[data_type]['full_bars'] = full_bars
+#         self.data.store[data_type]['full_bars'] = full_bars
 
-        if self.data.save_raw:
-            self.data.store[data_type]['raw']['full_bars'] = full_bars.to_numpy()
+#         if self.data.save_raw:
+#             self.data.store[data_type]['raw']['full_bars'] = full_bars.to_numpy()
 
-        return
+#         return
 
-    def agg_bars(self, data_bars):
+#     def agg_bars(self, data_bars):
 
-        n_bins = int(data_bars.shape[0] / self.data.seq_agg)
+#         n_bins = int(data_bars.shape[0] / self.data.seq_agg)
 
-        data_bars = data_bars.groupby(pd.cut(data_bars.index, bins=n_bins)).agg(
-            self.data.agg_data).dropna()
+#         data_bars = data_bars.groupby(pd.cut(data_bars.index, bins=n_bins)).agg(
+#             self.data.agg_data).dropna()
 
-        return data_bars.reset_index(drop=True)
+#         return data_bars.reset_index(drop=True)
 
-    def normalize_bars(self, data_bars):
+#     def normalize_bars(self, data_bars):
 
-        x_norm = self.data.preproc['normalize']['x_cols']
-        c_norm = self.data.preproc['normalize']['c_cols']
+#         x_norm = self.data.preproc['normalize']['x_cols']
+#         c_norm = self.data.preproc['normalize']['c_cols']
 
-        if x_norm is not None:
+#         if x_norm is not None:
 
-            # -- x groups off -- #
-            if not self.network.x_groups_on:
-                x_cols = self.data.nor_data['x']
+#             # -- x groups off -- #
+#             if not self.network.x_groups_on:
+#                 x_cols = self.data.nor_data['x']
 
-                self.data.preproc_trans['train']['x_cols'] = getattr(
-                    preprocessing, x_norm['cls'])(**x_norm['params'])
-                self.data.preproc_trans['train']['x_cols'].fit(
-                    data_bars[x_cols])
-                data_bars[x_cols] = self.data.preproc_trans['train']['x_cols'].transform(
-                    data_bars[x_cols])
+#                 self.data.preproc_trans['train']['x_cols'] = getattr(
+#                     preprocessing, x_norm['cls'])(**x_norm['params'])
+#                 self.data.preproc_trans['train']['x_cols'].fit(
+#                     data_bars[x_cols])
+#                 data_bars[x_cols] = self.data.preproc_trans['train']['x_cols'].transform(
+#                     data_bars[x_cols])
 
-            # -- x groups on -- #
-            if self.network.x_groups_on:
+#             # -- x groups on -- #
+#             if self.network.x_groups_on:
 
-                # -- pr cols -- #
-                pr_cols = self.data.x_groups['pr_group']
+#                 # -- pr cols -- #
+#                 pr_cols = self.data.x_groups['pr_group']
 
-                self.data.preproc_trans['train']['pr_cols'] = getattr(
-                    preprocessing, x_norm['cls'])(**x_norm['params'])
-                self.data.preproc_trans['train']['pr_cols'].fit(
-                    data_bars[pr_cols])
-                data_bars[pr_cols] = self.data.preproc_trans['train']['pr_cols'].transform(
-                    data_bars[pr_cols])
+#                 self.data.preproc_trans['train']['pr_cols'] = getattr(
+#                     preprocessing, x_norm['cls'])(**x_norm['params'])
+#                 self.data.preproc_trans['train']['pr_cols'].fit(
+#                     data_bars[pr_cols])
+#                 data_bars[pr_cols] = self.data.preproc_trans['train']['pr_cols'].transform(
+#                     data_bars[pr_cols])
 
-                # -- vol cols -- #
-                vol_cols = self.data.x_groups['vol_group']
+#                 # -- vol cols -- #
+#                 vol_cols = self.data.x_groups['vol_group']
 
-                self.data.preproc_trans['train']['vol_cols'] = getattr(
-                    preprocessing, x_norm['cls'])(**x_norm['params'])
-                self.data.preproc_trans['train']['vol_cols'].fit(
-                    data_bars[vol_cols])
-                data_bars[vol_cols] = self.data.preproc_trans['train']['vol_cols'].transform(
-                    data_bars[vol_cols])
+#                 self.data.preproc_trans['train']['vol_cols'] = getattr(
+#                     preprocessing, x_norm['cls'])(**x_norm['params'])
+#                 self.data.preproc_trans['train']['vol_cols'].fit(
+#                     data_bars[vol_cols])
+#                 data_bars[vol_cols] = self.data.preproc_trans['train']['vol_cols'].transform(
+#                     data_bars[vol_cols])
 
-                # -- atr cols -- #
-                atr_cols = self.data.x_groups['atr_group']
+#                 # -- atr cols -- #
+#                 atr_cols = self.data.x_groups['atr_group']
 
-                self.data.preproc_trans['train']['atr_cols'] = getattr(
-                    preprocessing, x_norm['cls'])(**x_norm['params'])
-                self.data.preproc_trans['train']['atr_cols'].fit(
-                    data_bars[atr_cols])
-                data_bars[atr_cols] = self.data.preproc_trans['train']['atr_cols'].transform(
-                    data_bars[atr_cols])
+#                 self.data.preproc_trans['train']['atr_cols'] = getattr(
+#                     preprocessing, x_norm['cls'])(**x_norm['params'])
+#                 self.data.preproc_trans['train']['atr_cols'].fit(
+#                     data_bars[atr_cols])
+#                 data_bars[atr_cols] = self.data.preproc_trans['train']['atr_cols'].transform(
+#                     data_bars[atr_cols])
 
-                # -- roc cols -- #
-                roc_cols = self.data.x_groups['roc_group']
+#                 # -- roc cols -- #
+#                 roc_cols = self.data.x_groups['roc_group']
 
-                self.data.preproc_trans['train']['roc_cols'] = getattr(
-                    preprocessing, x_norm['cls'])(**x_norm['params'])
-                self.data.preproc_trans['train']['roc_cols'].fit(
-                    data_bars[roc_cols])
-                data_bars[roc_cols] = self.data.preproc_trans['train']['roc_cols'].transform(
-                    data_bars[roc_cols])
+#                 self.data.preproc_trans['train']['roc_cols'] = getattr(
+#                     preprocessing, x_norm['cls'])(**x_norm['params'])
+#                 self.data.preproc_trans['train']['roc_cols'].fit(
+#                     data_bars[roc_cols])
+#                 data_bars[roc_cols] = self.data.preproc_trans['train']['roc_cols'].transform(
+#                     data_bars[roc_cols])
 
-                # -- zsc cols -- #
-                zsc_cols = self.data.x_groups['zsc_group']
+#                 # -- zsc cols -- #
+#                 zsc_cols = self.data.x_groups['zsc_group']
 
-                self.data.preproc_trans['train']['zsc_cols'] = getattr(
-                    preprocessing, x_norm['cls'])(**x_norm['params'])
-                self.data.preproc_trans['train']['zsc_cols'].fit(
-                    data_bars[zsc_cols])
-                data_bars[zsc_cols] = self.data.preproc_trans['train']['zsc_cols'].transform(
-                    data_bars[zsc_cols])
+#                 self.data.preproc_trans['train']['zsc_cols'] = getattr(
+#                     preprocessing, x_norm['cls'])(**x_norm['params'])
+#                 self.data.preproc_trans['train']['zsc_cols'].fit(
+#                     data_bars[zsc_cols])
+#                 data_bars[zsc_cols] = self.data.preproc_trans['train']['zsc_cols'].transform(
+#                     data_bars[zsc_cols])
 
-        # --- c cols --- #
-        if c_norm is not None and self.data.n_c_cols > 0:
-            c_cols = self.data.nor_data['c']
+#         # --- c cols --- #
+#         if c_norm is not None and self.data.n_c_cols > 0:
+#             c_cols = self.data.nor_data['c']
 
-            self.data.preproc_trans['train']['c_cols'] = getattr(
-                preprocessing, c_norm['cls'])(**c_norm['params'])
-            self.data.preproc_trans['train']['c_cols'].fit(data_bars[c_cols])
-            data_bars[c_cols] = self.data.preproc_trans['train']['c_cols'].transform(
-                data_bars[c_cols])
+#             self.data.preproc_trans['train']['c_cols'] = getattr(
+#                 preprocessing, c_norm['cls'])(**c_norm['params'])
+#             self.data.preproc_trans['train']['c_cols'].fit(data_bars[c_cols])
+#             data_bars[c_cols] = self.data.preproc_trans['train']['c_cols'].transform(
+#                 data_bars[c_cols])
 
-        return data_bars
+#         return data_bars
 
-    def seq_bars(self, full_bars, data_type):
+#     def seq_bars(self, full_bars, data_type):
 
-        model_bars = []
+#         model_bars = []
 
-        close_bars = self.data.store[data_type]['close_bars']
+#         close_bars = self.data.store[data_type]['close_bars']
 
-        n_bars = close_bars.shape[0]
+#         n_bars = close_bars.shape[0]
 
-        # --- append seq bars to close bars to generate model bars --- #
-        for _idx in range(n_bars):
-            _bar = close_bars.iloc[_idx]
+#         # --- append seq bars to close bars to generate model bars --- #
+#         for _idx in range(n_bars):
+#             _bar = close_bars.iloc[_idx]
 
-            _st_idx = _bar['bar_idx'] - self.data.seq_len
-            _ed_idx = _bar['bar_idx']
+#             _st_idx = _bar['bar_idx'] - self.data.seq_len
+#             _ed_idx = _bar['bar_idx']
 
-            seq_bars = full_bars[(full_bars['bar_idx'] > _st_idx) &
-                                 (full_bars['bar_idx'] <= _ed_idx)]
+#             seq_bars = full_bars[(full_bars['bar_idx'] > _st_idx) &
+#                                  (full_bars['bar_idx'] <= _ed_idx)]
 
-            model_bars.append(seq_bars.to_numpy())
+#             model_bars.append(seq_bars.to_numpy())
 
-        # -- concat model bars -- #
-        model_bars = np.concatenate(model_bars, axis=0)
+#         # -- concat model bars -- #
+#         model_bars = np.concatenate(model_bars, axis=0)
 
-        # --- reshape seq bars ---  #
-        n_samples = self.data.store[data_type]['config']['n_samples']
+#         # --- reshape seq bars ---  #
+#         n_samples = self.data.store[data_type]['config']['n_samples']
 
-        seq_depth = int(model_bars.shape[0] / n_samples)
+#         seq_depth = int(model_bars.shape[0] / n_samples)
 
-        _new_shp = (n_samples, seq_depth, model_bars.shape[-1])
+#         _new_shp = (n_samples, seq_depth, model_bars.shape[-1])
 
-        return np.reshape(model_bars, _new_shp)
+#         return np.reshape(model_bars, _new_shp)
 
-    def setup_outputs_ds(self, data_type):
+#     def setup_outputs_ds(self, data_type):
 
-        x_bars = self.data.store[data_type]['model_bars'][self.data.slice_configs['x_slice']]
+#         x_bars = self.data.store[data_type]['model_bars'][self.data.slice_configs['x_slice']]
 
-        return x_bars
-    # tf.data.Dataset.from_tensor_slices(tf.convert_to_tensor(x_bars,
-    #                                                                    dtype=self.data.dtype))
+#         return x_bars
+#     # tf.data.Dataset.from_tensor_slices(tf.convert_to_tensor(x_bars,
+#     #                                                                    dtype=self.data.dtype))
 
-    def pre_build_datasets(self, data_type, src, dest):
+#     def pre_build_datasets(self, data_type, src, dest):
 
-        batch_size = self.data.store[data_type]['config']['batch_size']
+#         batch_size = self.data.store[data_type]['config']['batch_size']
 
-        n_batches = int(self.data.store[data_type][src].shape[0] / batch_size)
+#         n_batches = int(self.data.store[data_type][src].shape[0] / batch_size)
 
-        self.data.store[data_type]['n_batches'] = n_batches
+#         self.data.store[data_type]['n_batches'] = n_batches
 
-        # -- splts -- #
+#         # -- splts -- #
 
-        self.data.store[data_type]['x_bars'] = self.data.store[data_type][src][self.data.slice_configs['x_slice']]
-        self.data.store[data_type]['c_bars'] = self.data.store[data_type][src][self.data.slice_configs['c_slice']]
-        self.data.store[data_type]['y_bars'] = self.data.store[data_type][src][self.data.slice_configs['y_slice']]
-        self.data.store[data_type]['t_bars'] = self.data.store[data_type][src][self.data.slice_configs['t_slice']]
+#         self.data.store[data_type]['x_bars'] = self.data.store[data_type][src][self.data.slice_configs['x_slice']]
+#         self.data.store[data_type]['c_bars'] = self.data.store[data_type][src][self.data.slice_configs['c_slice']]
+#         self.data.store[data_type]['y_bars'] = self.data.store[data_type][src][self.data.slice_configs['y_slice']]
+#         self.data.store[data_type]['t_bars'] = self.data.store[data_type][src][self.data.slice_configs['t_slice']]
 
-        if 'c_cols' in self.data.f_cols:
-            self.data.store[data_type]['x_bars'] = \
-                np.concatenate([self.data.store[data_type]['x_bars'],
-                                self.data.store[data_type]['c_bars']], axis=-1)
+#         if 'c_cols' in self.data.f_cols:
+#             self.data.store[data_type]['x_bars'] = \
+#                 np.concatenate([self.data.store[data_type]['x_bars'],
+#                                 self.data.store[data_type]['c_bars']], axis=-1)
 
-        out_ds = self.setup_outputs_ds(data_type)
+#         out_ds = self.setup_outputs_ds(data_type)
 
-        print(out_ds.shape)
+#         print(out_ds.shape)
 
-        self.data.store[data_type][dest] = get_dataset(self.data, data_type, batch_size)
+#         self.data.store[data_type][dest] = get_dataset(self.data, data_type, batch_size)
 
-        return
+#         return
 
 
-class Branches():
+# class Branches():
 
-    def __init__(self,
-                 trees,
-                 n_epochs,
-                 n_chains,
-                 model_config,
-                 data_config,
-                 build_config,
-                 opt_config,
-                 loss_config,
-                 metrics_config,
-                 run_config,
-                 save_config,
-                 name=None,
-                 **kwargs):
+#     def __init__(self,
+#                  trees,
+#                  n_epochs,
+#                  n_chains,
+#                  model_config,
+#                  data_config,
+#                  build_config,
+#                  opt_config,
+#                  loss_config,
+#                  metrics_config,
+#                  run_config,
+#                  save_config,
+#                  name=None,
+#                  **kwargs):
 
-        self.is_built = False
+#         self.is_built = False
 
-        self.trees = trees
+#         self.trees = trees
 
-        self.network = self.trees[0].network
-        self.photon = self.network.photon
+#         self.network = self.trees[0].network
+#         self.photon = self.network.photon
 
-        if name is None:
-            self.name = 'Photon Branch'
-        else:
-            self.name = name
+#         if name is None:
+#             self.name = 'Photon Branch'
+#         else:
+#             self.name = name
 
-        self.n_epochs = n_epochs
+#         self.n_epochs = n_epochs
 
-        self.n_chains = n_chains
-        self.chains = []
+#         self.n_chains = n_chains
+#         self.chains = []
 
-        self.msgs_on = False
+#         self.msgs_on = False
 
-        self.run = None
+#         self.run = None
 
-        # -- turn on branch msgs -- #
-        for rc in run_config:
-            if rc['msgs_on']:
-                self.msgs_on = True
+#         # -- turn on branch msgs -- #
+#         for rc in run_config:
+#             if rc['msgs_on']:
+#                 self.msgs_on = True
 
-        # -- configs -- #
-        self.configs = self.Configs(model_config=model_config,
-                                    data_config=data_config,
-                                    build_config=build_config,
-                                    opt_config=opt_config,
-                                    loss_config=loss_config,
-                                    metrics_config=metrics_config,
-                                    run_config=run_config,
-                                    save_config=save_config)
+#         # -- configs -- #
+#         self.configs = self.Configs(model_config=model_config,
+#                                     data_config=data_config,
+#                                     build_config=build_config,
+#                                     opt_config=opt_config,
+#                                     loss_config=loss_config,
+#                                     metrics_config=metrics_config,
+#                                     run_config=run_config,
+#                                     save_config=save_config)
 
-        # --- add branch to network --- #
-        self.branch_idx = self.network.add_branch(self)
+#         # --- add branch to network --- #
+#         self.branch_idx = self.network.add_branch(self)
 
-        # --- loop chains to init/build --- #
-        for chain_idx in range(self.n_chains):
+#         # --- loop chains to init/build --- #
+#         for chain_idx in range(self.n_chains):
 
-            # -- init chains -- #
-            chain = Chains(self, chain_idx)
+#             # -- init chains -- #
+#             chain = Chains(self, chain_idx)
 
-            if not chain.is_built:
-                chain.build_chain()
+#             if not chain.is_built:
+#                 chain.build_chain()
 
-            self.chains.insert(chain_idx, chain)
+#             self.chains.insert(chain_idx, chain)
 
-    @dataclass()
-    class Configs:
+#     @dataclass()
+#     class Configs:
 
-        model_config: List
-        data_config: List
-        build_config: List
-        opt_config: List
-        loss_config: List
-        metrics_config: List
-        run_config: List
-        save_config: List
+#         model_config: List
+#         data_config: List
+#         build_config: List
+#         opt_config: List
+#         loss_config: List
+#         metrics_config: List
+#         run_config: List
+#         save_config: List
 
-        def by_chain_idx(self, type: str, chain_idx: int) -> Dict:
+#         def by_chain_idx(self, type: str, chain_idx: int) -> Dict:
 
-            obj = getattr(self, type+'_config')
+#             obj = getattr(self, type+'_config')
 
-            if type == 'metrics':
-                obj = [obj]
+#             if type == 'metrics':
+#                 obj = [obj]
 
-            if len(obj) <= chain_idx:
-                obj_out = obj[-1]
-            else:
-                obj_out = obj[chain_idx]
+#             if len(obj) <= chain_idx:
+#                 obj_out = obj[-1]
+#             else:
+#                 obj_out = obj[chain_idx]
 
-            if len(obj) <= chain_idx:
-                obj_out = obj[-1]
-            else:
-                obj_out = obj[chain_idx]
+#             if len(obj) <= chain_idx:
+#                 obj_out = obj[-1]
+#             else:
+#                 obj_out = obj[chain_idx]
 
-            return obj_out
+#             return obj_out
 
 
-class Chains():
+# class Chains():
 
-    def __init__(self, branch, chain_idx):
+#     def __init__(self, branch, chain_idx):
 
-        self.run_device_types = 'model_gpus'
+#         self.run_device_types = 'model_gpus'
 
-        self.is_built = False
+#         self.is_built = False
 
-        self.branch = branch
-        self.chain_idx = chain_idx
+#         self.branch = branch
+#         self.chain_idx = chain_idx
 
-        self.network = self.branch.network
-        self.network.chains.append(self)
+#         self.network = self.branch.network
+#         self.network.chains.append(self)
 
-        self.photon = self.branch.photon
+#         self.photon = self.branch.photon
 
-        self.trees = []
+#         self.trees = []
 
-        for tree in self.branch.trees:
+#         for tree in self.branch.trees:
 
-            tree.chains.append(self)
-            self.trees.append(tree)
+#             tree.chains.append(self)
+#             self.trees.append(tree)
 
-        self.name = self.branch.name + '_chain_' + str(chain_idx)
+#         self.name = self.branch.name + '_chain_' + str(chain_idx)
 
-        self.models = []
+#         self.models = []
 
-        self.datasets = []
+#         self.datasets = []
 
-        self.idx_gen = []
+#         self.idx_gen = []
 
-        self.input_data = None
+#         self.input_data = None
 
-        self.model_gpus = []
+#         self.model_gpus = []
 
-        self.model_subs = []
+#         self.model_subs = []
 
-        self.logs = self.Logs()
+#         self.logs = self.Logs()
 
-    def build_chain(self):
+#     def build_chain(self):
 
-        self.model_config = self.branch.configs.by_chain_idx(
-            'model', self.chain_idx)
-        self.data_config = self.branch.configs.by_chain_idx(
-            'data', self.chain_idx)
-        self.build_config = self.branch.configs.by_chain_idx(
-            'build', self.chain_idx)
+#         self.model_config = self.branch.configs.by_chain_idx(
+#             'model', self.chain_idx)
+#         self.data_config = self.branch.configs.by_chain_idx(
+#             'data', self.chain_idx)
+#         self.build_config = self.branch.configs.by_chain_idx(
+#             'build', self.chain_idx)
 
-        self.opt_config = self.branch.configs.by_chain_idx(
-            'opt', self.chain_idx)
-        self.loss_config = self.branch.configs.by_chain_idx(
-            'loss', self.chain_idx)
-        self.metrics_config = self.branch.configs.by_chain_idx(
-            'metrics', self.chain_idx)
-        self.save_config = self.branch.configs.by_chain_idx(
-            'save', self.chain_idx)
+#         self.opt_config = self.branch.configs.by_chain_idx(
+#             'opt', self.chain_idx)
+#         self.loss_config = self.branch.configs.by_chain_idx(
+#             'loss', self.chain_idx)
+#         self.metrics_config = self.branch.configs.by_chain_idx(
+#             'metrics', self.chain_idx)
+#         self.save_config = self.branch.configs.by_chain_idx(
+#             'save', self.chain_idx)
 
-        self.n_models = self.model_config['n_models']
-        self.n_outputs = self.model_config['n_models']
+#         self.n_models = self.model_config['n_models']
+#         self.n_outputs = self.model_config['n_models']
 
-        # -- setup data slices -- #
-        self.setup_slices()
+#         # -- setup data slices -- #
+#         self.setup_slices()
 
-        # -- loop trees -- #
-        for tree_idx, tree in enumerate(self.trees):
+#         # -- loop trees -- #
+#         for tree_idx, tree in enumerate(self.trees):
 
-            # -- load data -- #
-            tree.load_data()
+#             # -- load data -- #
+#             tree.load_data()
 
-            # --- setup datasets --- #
-            train_ds = tree.data.store['train']['data_ds']
-            val_ds = None
-            test_ds = None
+#             # --- setup datasets --- #
+#             train_ds = tree.data.store['train']['data_ds']
+#             val_ds = None
+#             test_ds = None
 
-            if tree.data.store['val']['data_ds']:
-                val_ds = tree.data.store['val']['data_ds']
+#             if tree.data.store['val']['data_ds']:
+#                 val_ds = tree.data.store['val']['data_ds']
 
-            if tree.data.store['test']['data_ds']:
-                test_ds = tree.data.store['test']['data_ds']
+#             if tree.data.store['test']['data_ds']:
+#                 test_ds = tree.data.store['test']['data_ds']
 
-            self.datasets.insert(tree_idx, {'train': train_ds,
-                                            'val': val_ds,
-                                            'test': test_ds})
+#             self.datasets.insert(tree_idx, {'train': train_ds,
+#                                             'val': val_ds,
+#                                             'test': test_ds})
 
-        # -- build input data placeholder -- #
-        if self.input_data is None:
+#         # -- build input data placeholder -- #
+#         if self.input_data is None:
 
-            self.input_data = tf.keras.Input(shape=self.trees[0].data.input_shape,
-                                             batch_size=self.trees[0].data.batch_size,
-                                             dtype=self.network.float_x,
-                                             name=self.name + '_input_data')
+#             self.input_data = tf.keras.Input(shape=self.trees[0].data.input_shape,
+#                                              batch_size=self.trees[0].data.batch_size,
+#                                              dtype=self.network.float_x,
+#                                              name=self.name + '_input_data')
 
-            self.targets_data = tf.keras.Input(shape=self.trees[0].data.targets_shape,
-                                               batch_size=self.trees[0].data.batch_size,
-                                               dtype=self.network.float_x,
-                                               name=self.name + '_targets_data')
+#             self.targets_data = tf.keras.Input(shape=self.trees[0].data.targets_shape,
+#                                                batch_size=self.trees[0].data.batch_size,
+#                                                dtype=self.network.float_x,
+#                                                name=self.name + '_targets_data')
 
-            self.tracking_data = tf.keras.Input(shape=self.trees[0].data.tracking_shape,
-                                                batch_size=self.trees[0].data.batch_size,
-                                                dtype=self.network.float_x,
-                                                name=self.name + '_tracking_data')
+#             self.tracking_data = tf.keras.Input(shape=self.trees[0].data.tracking_shape,
+#                                                 batch_size=self.trees[0].data.batch_size,
+#                                                 dtype=self.network.float_x,
+#                                                 name=self.name + '_tracking_data')
 
-        # --- setup gauge/models --- #
-        for model_idx in range(self.n_models):
+#         # --- setup gauge/models --- #
+#         for model_idx in range(self.n_models):
 
-            # --- init gauge --- #
-            gauge = Gauge(chain=self, model_idx=model_idx)
+#             # --- init gauge --- #
+#             gauge = Gauge(chain=self, model_idx=model_idx)
 
-            # -- insert into chain models -- #
-            self.models.insert(model_idx, gauge)
+#             # -- insert into chain models -- #
+#             self.models.insert(model_idx, gauge)
 
-        self.is_built = True
+#         self.is_built = True
 
-        return
+#         return
 
-    def setup_slices(self):
+#     def setup_slices(self):
 
-        targets_config = self.data_config['targets']
-        split_on = targets_config['split_on']
+#         targets_config = self.data_config['targets']
+#         split_on = targets_config['split_on']
 
-        self.data_config['targets']['true_slice'] = np.s_[..., :split_on]
-        self.data_config['targets']['tracking_slice'] = np.s_[..., split_on:]
+#         self.data_config['targets']['true_slice'] = np.s_[..., :split_on]
+#         self.data_config['targets']['tracking_slice'] = np.s_[..., split_on:]
 
-    @dataclass
-    class Logs:
+#     @dataclass
+#     class Logs:
 
-        batch_data: List = field(default_factory=lambda: {
-                                 'main': [[]], 'val': [[]]})
+#         batch_data: List = field(default_factory=lambda: {
+#                                  'main': [[]], 'val': [[]]})
 
 
-class Gauge():
+# class Gauge():
 
-    def __init__(self, chain, model_idx):
+#     def __init__(self, chain, model_idx):
 
-        self.is_built = False
-        self.is_compiled = False
+#         self.is_built = False
+#         self.is_compiled = False
 
-        self.is_model_built = False
+#         self.is_model_built = False
 
-        self.chain = chain
-        self.model_idx = model_idx
+#         self.chain = chain
+#         self.model_idx = model_idx
 
-        self.chain_idx = self.chain.chain_idx
-        self.branch = self.chain.branch
-        self.network = self.branch.network
-        self.dtype = self.network.dtype
+#         self.chain_idx = self.chain.chain_idx
+#         self.branch = self.chain.branch
+#         self.network = self.branch.network
+#         self.dtype = self.network.dtype
 
-        self.name = chain.name + '_model_' + str(model_idx)
+#         self.name = chain.name + '_model_' + str(model_idx)
 
-        self.input_shape = ()
+#         self.input_shape = ()
 
-        self.layers = {}
-        self.parent_layers = {}
-        self.child_layers = {}
+#         self.layers = {}
+#         self.parent_layers = {}
+#         self.child_layers = {}
 
-        self.src = None
+#         self.src = None
 
-        self.model_args = None
-        self.model_inputs = None
+#         self.model_args = None
+#         self.model_inputs = None
 
-        self.opt_fn = None
-        self.loss_fn = None
-        self.metrics_fn = None
+#         self.opt_fn = None
+#         self.loss_fn = None
+#         self.metrics_fn = None
 
-        self.conn_chain_idx = None
-        self.conn_n_models = None
+#         self.conn_chain_idx = None
+#         self.conn_n_models = None
 
-        self.chkp_manager = None
-        self.chkp_dir = None
+#         self.chkp_manager = None
+#         self.chkp_dir = None
 
-        self.run_chain = None
-        self.run_model = None
-        self.run_data = None
-        self.is_live = False
+#         self.run_chain = None
+#         self.run_model = None
+#         self.run_data = None
+#         self.is_live = False
 
-        self.strat_on = False
-        self.dist_on = False
+#         self.strat_on = False
+#         self.dist_on = False
 
-        self.runs = []
+#         self.runs = []
 
-        self.batch_data = []
-        self.val_batch_data = []
+#         self.batch_data = []
+#         self.val_batch_data = []
 
-        self.datasets = {'train': None,
-                         'val': None,
-                         'test': None}
+#         self.datasets = {'train': None,
+#                          'val': None,
+#                          'test': None}
 
-        self.log_theta = False
-        self.logs = self.Logs()
+#         self.log_theta = False
+#         self.logs = self.Logs()
 
-        self.setup_strats()
+#         self.setup_strats()
 
-    def setup_strats(self):
+#     def setup_strats(self):
 
-        self.strat_type = self.chain.build_config['strat_type']
-        self.dist_type = self.chain.build_config['dist_type']
+#         self.strat_type = self.chain.build_config['strat_type']
+#         self.dist_type = self.chain.build_config['dist_type']
 
-        # self.run_device = '/GPU:0'
-        self.strat = None
+#         # self.run_device = '/GPU:0'
+#         self.strat = None
 
-        if self.chain.photon.n_gpus > 1:
+#         if self.chain.photon.n_gpus > 1:
 
-            # if self.strat_type is None:
-            # self.run_device = self.chain.model_gpus[self.model_idx]['v_run_device']
+#             # if self.strat_type is None:
+#             # self.run_device = self.chain.model_gpus[self.model_idx]['v_run_device']
 
-            if self.strat_type is not None:
+#             if self.strat_type is not None:
 
-                self.strat_on = True
+#                 self.strat_on = True
 
-                if self.strat_type == 'Mirrored':
-                    self.strat = tf.distribute.MirroredStrategy(
-                        self.chain.photon.gpus)
-                    self.dist_on = True
+#                 if self.strat_type == 'Mirrored':
+#                     self.strat = tf.distribute.MirroredStrategy(
+#                         self.chain.photon.gpus)
+#                     self.dist_on = True
 
-        # if self.strat_type == 'One':
-        #
-        #     self.strat_on = True
-        #     self.strat = tf.distribute.OneDeviceStrategy(self.run_device)
+#         # if self.strat_type == 'One':
+#         #
+#         #     self.strat_on = True
+#         #     self.strat = tf.distribute.OneDeviceStrategy(self.run_device)
 
-    def build_gauge(self, run, chain, model):
+#     def build_gauge(self, run, chain, model):
 
-        self.tree = self.chain.trees[0]
+#         self.tree = self.chain.trees[0]
 
-        self.model_args = self.chain.model_config['args']
+#         self.model_args = self.chain.model_config['args']
 
-        # -- init model -- #
-        self.src = self.chain.model_config['model'](**{'gauge': self})
+#         # -- init model -- #
+#         self.src = self.chain.model_config['model'](**{'gauge': self})
 
-        # -- opt_fn -- #
-        self.opt_fn = self.chain.opt_config['fn']
+#         # -- opt_fn -- #
+#         self.opt_fn = self.chain.opt_config['fn']
 
-        # -- setup loss fn -- #
-        self.setup_loss_fn()
+#         # -- setup loss fn -- #
+#         self.setup_loss_fn()
 
-        self.is_built = True
+#         self.is_built = True
 
-        self.runs.insert(run.run_idx, run)
+#         self.runs.insert(run.run_idx, run)
 
-        self.run_chain = chain
-        self.run_model = model
+#         self.run_chain = chain
+#         self.run_model = model
 
-        return
+#         return
 
-    def setup_loss_fn(self):
+#     def setup_loss_fn(self):
 
-        self.loss_fn = self.chain.loss_config['fn'](
-            **self.chain.loss_config['args'])
+#         self.loss_fn = self.chain.loss_config['fn'](
+#             **self.chain.loss_config['args'])
 
-    def compile_gauge(self, tree_idx):
+#     def compile_gauge(self, tree_idx):
 
-        self.opt_fn = self.opt_fn(gauge=self,
-                                  tree=self.chain.trees[tree_idx],
-                                  config=self.chain.opt_config['args'],
-                                  n_epochs=self.branch.n_epochs)
+#         self.opt_fn = self.opt_fn(gauge=self,
+#                                   tree=self.chain.trees[tree_idx],
+#                                   config=self.chain.opt_config['args'],
+#                                   n_epochs=self.branch.n_epochs)
 
-        self.metrics_fns = []
+#         self.metrics_fns = []
 
-        for config in self.chain.metrics_config:
-            self.metrics_fns.append(config['fn'](config['args']))
+#         for config in self.chain.metrics_config:
+#             self.metrics_fns.append(config['fn'](config['args']))
 
-        # -- compile model -- #
-        self.src.compile(optimizer=self.opt_fn)
+#         # -- compile model -- #
+#         self.src.compile(optimizer=self.opt_fn)
 
-        self.log_theta = self.model_args['log_config']['log_theta']
+#         self.log_theta = self.model_args['log_config']['log_theta']
 
-        self.theta = Theta(self)
+#         self.theta = Theta(self)
 
-        self.is_compiled = True
+#         self.is_compiled = True
 
-    def setup_cp(self, step_idx, load_cp):
+#     def setup_cp(self, step_idx, load_cp):
 
-        if not self.is_compiled:
-            self.compile_gauge()
+#         if not self.is_compiled:
+#             self.compile_gauge()
 
-        self.chkp_nm = self.chain.name + '_model_' + str(self.model_idx)
+#         self.chkp_nm = self.chain.name + '_model_' + str(self.model_idx)
 
-        self.chkp_dir = self.get_chkp_dir()
+#         self.chkp_dir = self.get_chkp_dir()
 
-        self.chkp = tf.train.Checkpoint(model=self.src,
-                                        step_idx=step_idx)
+#         self.chkp = tf.train.Checkpoint(model=self.src,
+#                                         step_idx=step_idx)
 
-        self.chkp_manager = tf.train.CheckpointManager(checkpoint=self.chkp,
-                                                       directory=self.chkp_dir,
-                                                       max_to_keep=5,
-                                                       step_counter=step_idx,
-                                                       checkpoint_name=self.chkp_nm,
-                                                       checkpoint_interval=1)
+#         self.chkp_manager = tf.train.CheckpointManager(checkpoint=self.chkp,
+#                                                        directory=self.chkp_dir,
+#                                                        max_to_keep=5,
+#                                                        step_counter=step_idx,
+#                                                        checkpoint_name=self.chkp_nm,
+#                                                        checkpoint_interval=1)
 
-        if self.chkp_manager.latest_checkpoint and load_cp:
+#         if self.chkp_manager.latest_checkpoint and load_cp:
 
-            chkp_status = None
-            chkp_status = self.chkp.restore(
-                self.chkp_manager.latest_checkpoint)
-            chkp_status.assert_existing_objects_matched()
+#             chkp_status = None
+#             chkp_status = self.chkp.restore(
+#                 self.chkp_manager.latest_checkpoint)
+#             chkp_status.assert_existing_objects_matched()
 
-            print(f'model restored from {self.chkp_manager.latest_checkpoint}')
+#             print(f'model restored from {self.chkp_manager.latest_checkpoint}')
 
-    def get_chkp_dir(self):
+#     def get_chkp_dir(self):
 
-        branch_nm = 'branch_' + str(self.branch.branch_idx)
+#         branch_nm = 'branch_' + str(self.branch.branch_idx)
 
-        chkp_dir = self.network.photon.store['chkps'] + '/' + self.network.photon.photon_nm.lower(
-        ) + '/' + branch_nm + '/' + self.chain.name.lower() + '/model_' + str(self.model_idx)
+#         chkp_dir = self.network.photon.store['chkps'] + '/' + self.network.photon.photon_nm.lower(
+#         ) + '/' + branch_nm + '/' + self.chain.name.lower() + '/model_' + str(self.model_idx)
 
-        if self.network.photon_load_id == 0 and os.path.exists(chkp_dir):
-            os.remove(chkp_dir)
+#         if self.network.photon_load_id == 0 and os.path.exists(chkp_dir):
+#             os.remove(chkp_dir)
 
-        return chkp_dir
+#         return chkp_dir
 
-    def setup_run(self, run, chain, model):
+#     def setup_run(self, run, chain, model):
 
-        self.runs.insert(run.run_idx, run)
+#         self.runs.insert(run.run_idx, run)
 
-        self.run_chain = chain
-        self.run_model = model
+#         self.run_chain = chain
+#         self.run_model = model
 
-    def pre_build_model(self):
+#     def pre_build_model(self):
 
-        if not self.is_compiled:
-            self.compile_gauge()
+#         if not self.is_compiled:
+#             self.compile_gauge()
 
-        self.src.pre_build(input_data=self.chain.input_data,
-                           targets_data=self.chain.targets_data,
-                           tracking_data=self.chain.tracking_data)
+#         self.src.pre_build(input_data=self.chain.input_data,
+#                            targets_data=self.chain.targets_data,
+#                            tracking_data=self.chain.tracking_data)
 
-    @dataclass
-    class Logs:
+#     @dataclass
+#     class Logs:
 
-        calls: List = field(default_factory=lambda: {
-                            'main': [[]], 'val': [[]]})
-        layers: List = field(default_factory=lambda: {
-                             'main': [[]], 'val': [[]]})
-        run_data: List = field(default_factory=lambda: {
-                               'main': [[]], 'val': [[]]})
-        theta: List = field(default_factory=lambda: [[]])
+#         calls: List = field(default_factory=lambda: {
+#                             'main': [[]], 'val': [[]]})
+#         layers: List = field(default_factory=lambda: {
+#                              'main': [[]], 'val': [[]]})
+#         run_data: List = field(default_factory=lambda: {
+#                                'main': [[]], 'val': [[]]})
+#         theta: List = field(default_factory=lambda: [[]])
 
 
-class Theta:
+# class Theta:
 
-    def __init__(self, gauge):
+#     def __init__(self, gauge):
 
-        self.gauge = gauge
-        self.logs_on = self.gauge.log_theta
+#         self.gauge = gauge
+#         self.logs_on = self.gauge.log_theta
 
-        self.params = {'model_pre': [],
-                       'model_post': [], 'opt': [], 'grads': []}
+#         self.params = {'model_pre': [],
+#                        'model_post': [], 'opt': [], 'grads': []}
 
-    def save_params(self, param_type, grads=None):
+#     def save_params(self, param_type, grads=None):
 
-        if self.logs_on:
+#         if self.logs_on:
 
-            if param_type == 'model_pre' or param_type == 'model_post':
+#             if param_type == 'model_pre' or param_type == 'model_post':
 
-                for idx, p in enumerate(self.gauge.src.trainable_variables):
+#                 for idx, p in enumerate(self.gauge.src.trainable_variables):
 
-                    p_name = p.name
+#                     p_name = p.name
 
-                    p_data = {'idx': idx,
-                              'name': p_name,
-                              'shape': p.shape,
-                              'avg': tf.math.reduce_mean(p).numpy(),
-                              'value': p.numpy()}
+#                     p_data = {'idx': idx,
+#                               'name': p_name,
+#                               'shape': p.shape,
+#                               'avg': tf.math.reduce_mean(p).numpy(),
+#                               'value': p.numpy()}
 
-                    self.params[param_type].append(p_data)
+#                     self.params[param_type].append(p_data)
 
-                    if grads is not None:
+#                     if grads is not None:
 
-                        if grads[idx] is not None:
-                            grads_data = {'idx': idx,
-                                          'name': p_name,
-                                          'shape': grads[idx].shape,
-                                          'avg': tf.math.reduce_mean(grads[idx]).numpy(),
-                                          'value': grads[idx].numpy()}
+#                         if grads[idx] is not None:
+#                             grads_data = {'idx': idx,
+#                                           'name': p_name,
+#                                           'shape': grads[idx].shape,
+#                                           'avg': tf.math.reduce_mean(grads[idx]).numpy(),
+#                                           'value': grads[idx].numpy()}
 
-                            self.params['grads'].append(grads_data)
+#                             self.params['grads'].append(grads_data)
 
-            if param_type == 'opt':
+#             if param_type == 'opt':
 
-                for idx, opt in enumerate(self.gauge.src.optimizer.get_weights()):
+#                 for idx, opt in enumerate(self.gauge.src.optimizer.get_weights()):
 
-                    if idx > 0:
-                        opt_data = {'idx': idx,
-                                    'shape': opt.shape,
-                                    'avg': tf.math.reduce_mean(opt).numpy(),
-                                    'value': opt}
+#                     if idx > 0:
+#                         opt_data = {'idx': idx,
+#                                     'shape': opt.shape,
+#                                     'avg': tf.math.reduce_mean(opt).numpy(),
+#                                     'value': opt}
 
-                        self.params['opt'].append(opt_data)
+#                         self.params['opt'].append(opt_data)
 
-    def log_params(self, epoch_idx):
+#     def log_params(self, epoch_idx):
 
-        if self.logs_on:
+#         if self.logs_on:
 
-            if len(self.gauge.logs.theta) <= epoch_idx:
-                self.gauge.logs.theta.append([])
+#             if len(self.gauge.logs.theta) <= epoch_idx:
+#                 self.gauge.logs.theta.append([])
 
-            self.gauge.logs.theta[epoch_idx].append(self.params.copy())
+#             self.gauge.logs.theta[epoch_idx].append(self.params.copy())
 
-            self.params = {'model_pre': [],
-                           'model_post': [], 'opt': [], 'grads': []}
+#             self.params = {'model_pre': [],
+#                            'model_post': [], 'opt': [], 'grads': []}
