@@ -20,6 +20,7 @@ from tensorflow.python.keras.utils import losses_utils
 
 from sklearn import preprocessing
 
+
 def posterior_mean_field(kernel_size, bias_size=0, dtype=None):
 
     n = kernel_size + bias_size
@@ -33,6 +34,7 @@ def posterior_mean_field(kernel_size, bias_size=0, dtype=None):
                                   reinterpreted_batch_ndims=1)))
 
     return model
+
 
 def prior_trainable(kernel_size, bias_size=0, dtype=None):
 
@@ -55,12 +57,13 @@ class Models(tf_Model):
 
         self.inputs_ph = None
 
-        self.d_model = self.gauge.model_args['d_model']
-        self.reg_args = self.gauge.model_args['reg_args']
-        self.norm_args = self.gauge.model_args['norm_args']
-        self.drop_rate = self.gauge.model_args['reg_vals'][0]
-        self.seed = self.gauge.model_args['seed']
-        self.show_calls = self.gauge.model_args['show_calls']
+        self.d_model = self.gauge.model_args.get('d_model', None)
+        self.n_outputs = self.gauge.model_args.get('n_outputs', None)
+        self.reg_args = self.gauge.model_args.get('reg_args', None)
+        self.norm_args = self.gauge.model_args.get('norm_args', None)
+        self.drop_rate = self.gauge.model_args.get('reg_vals', [])[0]
+        self.seed = self.gauge.model_args.get('seed', None)
+        self.show_calls = self.gauge.model_args.get('show_calls', None)
 
         log_calls_config = args_key_chk(self.gauge.model_args['log_config'], 'log_calls', [])
         log_layers_config = args_key_chk(self.gauge.model_args['log_config'], 'log_layers', [])
@@ -77,8 +80,6 @@ class Models(tf_Model):
 
         self.log_run_data = args_key_chk(log_run_data_config, 'main', False)
         self.log_run_data_val = args_key_chk(log_run_data_config, 'val', False)
-
-        # self.log_theta = args_key_chk(self.gauge.model_args['log_config'], 'log_theta', False)
 
         self.model_idx = self.gauge.model_idx
         self.chain = self.gauge.chain
@@ -103,23 +104,12 @@ class Models(tf_Model):
 
     def __call__(self, inputs, training, **kwargs):
 
-        if 'epoch_idx' in kwargs:
-            self.epoch_idx = kwargs['epoch_idx']
-
-        if 'batch_idx' in kwargs:
-            self.batch_idx = kwargs['batch_idx']
-
-        if 'run_type' in kwargs:
-            self.run_type = kwargs['run_type']
-
-        if 'data_type' in kwargs:
-            self.data_type = kwargs['data_type']
-
-        if 'is_val' in kwargs:
-            self.is_val = kwargs['is_val']
-
-        if 'is_training' in kwargs:
-            self.is_training = kwargs['is_training']
+        self.epoch_idx = kwargs.get('epoch_idx', None)
+        self.batch_idx = kwargs.get('batch_idx', None)
+        self.run_type = kwargs.get('run_type', None)
+        self.data_type = kwargs.get('data_type', None)
+        self.is_val = kwargs.get('is_val', None)
+        self.is_training = kwargs.get('is_training', None)
 
         if not self.gauge.is_built:
             self.build_model()
@@ -127,23 +117,20 @@ class Models(tf_Model):
         if self.gauge.is_model_built:
 
             if self.show_calls:
-                tf.print( '\nrun_type:', self.gauge.run_chain.live.run_type,
+                tf.print('\nrun_type:', self.gauge.run_chain.live.run_type,
+                         '| chain_idx:', self.gauge.run_chain.src.chain_idx,
+                         '| model_idx:', self.gauge.model_idx,
+                         '| epoch_idx:', self.gauge.run_model.live.epoch_idx,
+                         '| batch_idx:', self.gauge.run_model.live.batch_idx,
+                         '| data_type:', self.gauge.run_model.live.data_type,
+                         '| is_val:', self.gauge.run_model.live.is_val,
+                         '| is_training:', self.gauge.run_model.live.is_training,
+                         '| inputs_shape:', tuple(inputs.shape.as_list()),
 
-                          '| chain_idx:', self.gauge.run_chain.src.chain_idx,
-                          '| model_idx:', self.gauge.model_idx,
-
-                          '| epoch_idx:', self.gauge.run_model.live.epoch_idx,
-                          '| batch_idx:', self.gauge.run_model.live.batch_idx,
-
-                          '| run_type:', self.gauge.run_model.live.run_type,
-                          '| data_type:', self.gauge.run_model.live.data_type,
-                          '| is_val:', self.gauge.run_model.live.is_val,
-                          '| is_training:', self.gauge.run_model.live.is_training,
-
-                          output_stream=sys.stdout, sep=' ', end='\n')
+                         output_stream=sys.stdout, sep=' ', end='\n')
 
             return self.call(inputs,
-                             targets=args_key_chk(kwargs,'targets'),
+                             targets=args_key_chk(kwargs, 'targets'),
                              tracking=args_key_chk(kwargs, 'tracking'))
 
     def pre_build(self, input_data, targets_data, tracking_data):
@@ -155,7 +142,6 @@ class Models(tf_Model):
         self.gauge.is_model_built = True
 
     def build_run_data(self, config):
-
         '''
 
             args:

@@ -20,7 +20,6 @@ from photon import metrics, losses, utils
 from photon.gamma import Gamma
 
 
-
 def get_dataset(data,
                 data_type,
                 batch_size):
@@ -891,8 +890,9 @@ class Trees():
 
         x_bars = self.data.store[data_type]['model_bars'][self.data.slice_configs['x_slice']]
 
-        return tf.data.Dataset.from_tensor_slices(tf.convert_to_tensor(x_bars,
-                                                                       dtype=self.data.dtype))
+        return x_bars
+    # tf.data.Dataset.from_tensor_slices(tf.convert_to_tensor(x_bars,
+    #                                                                    dtype=self.data.dtype))
 
     def pre_build_datasets(self, data_type, src, dest):
 
@@ -913,6 +913,10 @@ class Trees():
             self.data.store[data_type]['x_bars'] = \
                 np.concatenate([self.data.store[data_type]['x_bars'],
                                 self.data.store[data_type]['c_bars']], axis=-1)
+
+        out_ds = self.setup_outputs_ds(data_type)
+
+        print(out_ds.shape)
 
         self.data.store[data_type][dest] = get_dataset(self.data, data_type, batch_size)
 
@@ -1119,7 +1123,6 @@ class Chains():
                                                 batch_size=self.trees[0].data.batch_size,
                                                 dtype=self.network.float_x,
                                                 name=self.name + '_tracking_data')
-
 
         # --- setup gauge/models --- #
         for model_idx in range(self.n_models):

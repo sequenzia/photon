@@ -340,8 +340,6 @@ class Norm(Layers):
 
     def call(self, inputs, training=None, **kwargs):
 
-        # print('calling norm layer: ', self.layer_nm, training, '\n')
-
         z_output = self.k_layer(inputs=inputs, training=training)
 
         return z_output
@@ -419,7 +417,6 @@ class CNN(Layers):
         return
 
     def call(self, inputs, training=None, **kwargs):
-        print(f"{self.layer_nm} -> {inputs.shape} -> {training}")
         return self.k_layer(inputs=inputs, training=training)
 
     def set_args(self, **kwargs):

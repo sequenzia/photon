@@ -1,3 +1,4 @@
+from __future__ import annotations
 import tensorflow as tf
 
 from dataclasses import dataclass, field, replace as dc_replace
@@ -78,6 +79,7 @@ def setup_runs(network: Any,
 
     return run
 
+
 @dataclass
 class Runs:
 
@@ -88,7 +90,7 @@ class Runs:
 
     id: int = int(dt.now().timestamp())
 
-    branches: List = field(default_factory=lambda:[])
+    branches: List = field(default_factory=lambda: [])
 
     def add_branch(self, run, branch, branch_idx):
 
@@ -101,14 +103,15 @@ class Runs:
     def __repr__(self):
         return f'{self.__class__} {hex(id(self))}'
 
+
 @dataclass
 class Branches:
 
     run: Runs
     src: Any
     branch_idx: int
-    chains: List = field(default_factory=lambda:[])
-    batch_data: List = field(default_factory=lambda:[])
+    chains: List = field(default_factory=lambda: [])
+    batch_data: List = field(default_factory=lambda: [])
     epoch_msg: Any = None
 
     def add_chain(self, chain, chain_idx):
@@ -118,15 +121,16 @@ class Branches:
     def __repr__(self):
         return f'{self.__class__} {hex(id(self))}'
 
+
 @dataclass
 class Chains:
 
-    branch: Any
+    branch: Branches
     src: Any
     chain_idx: int
     n_outputs: int
     n_models: int = 0
-    models: List = field(default_factory=lambda:[])
+    models: List = field(default_factory=lambda: [])
 
     def add_config(self, config):
 
@@ -160,7 +164,7 @@ class Chains:
     @dataclass
     class Configs:
 
-        chain: Any
+        chain: Chains
         run_fn: str
         run_type: str
         data_type: str
@@ -178,7 +182,7 @@ class Chains:
     @dataclass
     class Live:
 
-        chain: Any
+        chain: Chains
 
         run_type: str = None
         data_type: str = None
@@ -194,14 +198,14 @@ class Chains:
     @dataclass
     class Models:
 
-        chain: Any
+        chain: Chains
         gauge: Any
         src: Any
         model_idx: int
 
         pre_step_idx: int
 
-        steps_log: List = field(default_factory=lambda:[])
+        steps_log: List = field(default_factory=lambda: [])
 
         def add_live(self):
             self.live = self.Live(self)
@@ -271,7 +275,7 @@ class Chains:
             batch_idx: int = None
             model_idx: int = None
 
-            batch_data: List = field(default_factory=lambda:[])
+            batch_data: List = field(default_factory=lambda: [])
             val_batch_data: List = field(default_factory=lambda: [])
 
             def __post_init__(self):
