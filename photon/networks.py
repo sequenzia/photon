@@ -32,9 +32,9 @@ class Networks():
                  dirs_on: str,
                  diag_on: bool,
                  msgs_on: bool,
-                 name: str = '',
-                 photon: Photon = None,
-                 float_x: int = 32):
+                 name: Optional[str] = None,
+                 photon: Optional[Photon] = None,
+                 float_x: Optional[int] = 32):
 
         self.is_built = False
 
