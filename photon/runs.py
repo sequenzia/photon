@@ -1,10 +1,16 @@
+from __future__ import annotations
 import tensorflow as tf
 
 from dataclasses import dataclass, field, replace as dc_replace
 from typing import List, Dict, Any
 from datetime import datetime as dt
 
-def setup_runs(network, branches, run_config, run_fn, rebuild_on):
+
+def setup_runs(network: Any,
+               branches: Any,
+               run_config: Dict,
+               run_fn: str,
+               rebuild_on: bool):
 
     if not run_fn:
         run_fn = 'data-models'
@@ -35,7 +41,6 @@ def setup_runs(network, branches, run_config, run_fn, rebuild_on):
                        'load_cp': branch_run_config['load_cp'],
                        'save_cp': branch_run_config['save_cp'],
                        'msgs_on': branch_run_config['msgs_on'],
-                       'async_on': branch_run_config['async_on'],
                        'n_metrics_fns': len(branch.configs.by_chain_idx('metrics', chain_idx))}
 
             if len(run_config) > chain_idx:
@@ -74,6 +79,7 @@ def setup_runs(network, branches, run_config, run_fn, rebuild_on):
 
     return run
 
+
 @dataclass
 class Runs:
 
@@ -84,7 +90,7 @@ class Runs:
 
     id: int = int(dt.now().timestamp())
 
-    branches: List = field(default_factory=lambda:[])
+    branches: List = field(default_factory=lambda: [])
 
     def add_branch(self, run, branch, branch_idx):
 
@@ -97,14 +103,15 @@ class Runs:
     def __repr__(self):
         return f'{self.__class__} {hex(id(self))}'
 
+
 @dataclass
 class Branches:
 
     run: Runs
     src: Any
     branch_idx: int
-    chains: List = field(default_factory=lambda:[])
-    batch_data: List = field(default_factory=lambda:[])
+    chains: List = field(default_factory=lambda: [])
+    batch_data: List = field(default_factory=lambda: [])
     epoch_msg: Any = None
 
     def add_chain(self, chain, chain_idx):
@@ -114,15 +121,16 @@ class Branches:
     def __repr__(self):
         return f'{self.__class__} {hex(id(self))}'
 
+
 @dataclass
 class Chains:
 
-    branch: Any
+    branch: Branches
     src: Any
     chain_idx: int
     n_outputs: int
     n_models: int = 0
-    models: List = field(default_factory=lambda:[])
+    models: List = field(default_factory=lambda: [])
 
     def add_config(self, config):
 
@@ -156,7 +164,7 @@ class Chains:
     @dataclass
     class Configs:
 
-        chain: Any
+        chain: Chains
         run_fn: str
         run_type: str
         data_type: str
@@ -166,7 +174,6 @@ class Chains:
         load_cp: bool
         save_cp: bool
         msgs_on: bool
-        async_on: bool
         n_metrics_fns: int
 
         def __repr__(self):
@@ -175,7 +182,7 @@ class Chains:
     @dataclass
     class Live:
 
-        chain: Any
+        chain: Chains
 
         run_type: str = None
         data_type: str = None
@@ -188,24 +195,17 @@ class Chains:
         def __repr__(self):
             return f'{self.__class__} {hex(id(self))}'
 
-        @classmethod
-        def set_cls_attr(cls, xxx):
-            if xxx:
-                cls.cls_attr = 'this_value'
-            else:
-                cls.cls_attr = 'that_value'
-
     @dataclass
     class Models:
 
-        chain: Any
+        chain: Chains
         gauge: Any
         src: Any
         model_idx: int
 
         pre_step_idx: int
 
-        steps_log: List = field(default_factory=lambda:[])
+        steps_log: List = field(default_factory=lambda: [])
 
         def add_live(self):
             self.live = self.Live(self)
@@ -221,8 +221,6 @@ class Chains:
                 self.gauge.build_gauge(self.chain.branch.run, self.chain, self)
 
             self.src = self.gauge.src
-
-            # self.gauge.setup_run(self.chain.branch.run, self.chain, self)
 
             # -- if first run of network or rebuild is on -- #
             if not self.chain.branch.run.network.runs or self.chain.branch.run.rebuild_on:
@@ -277,7 +275,7 @@ class Chains:
             batch_idx: int = None
             model_idx: int = None
 
-            batch_data: List = field(default_factory=lambda:[])
+            batch_data: List = field(default_factory=lambda: [])
             val_batch_data: List = field(default_factory=lambda: [])
 
             def __post_init__(self):

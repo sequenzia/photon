@@ -16,11 +16,6 @@ def dest_append(obj, dest, key=None, epoch_idx=None, batch_idx=None):
 
             dest[epoch_idx].insert(batch_idx, obj)
 
-            # if len(dest[epoch_idx]) <= batch_idx:
-            #     dest[epoch_idx].append([])
-
-        # dest[epoch_idx][batch_idx] = obj
-
         return dest
 
 def np_exp(obj):

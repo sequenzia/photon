@@ -1,4 +1,11 @@
-import os, sys, asyncio, tracemalloc, threading, math, functools, time
+import os
+import sys
+import asyncio
+import tracemalloc
+import threading
+import math
+import functools
+import time
 import tensorflow as tf
 import numpy as np
 import pandas as pd
@@ -10,6 +17,9 @@ from dataclasses import replace as dc_replace
 
 from photon.runs import setup_runs
 from photon.utils import dest_append, obj_exp
+
+from photon.runs import Runs, Branches, Chains
+
 
 def run_timer(func):
     @functools.wraps(func)
@@ -31,6 +41,7 @@ def run_timer(func):
 
     return timer_wrapper
 
+
 class Gamma():
 
     def __init__(self, network):
@@ -43,7 +54,7 @@ class Gamma():
 
     @run_timer
     def run_network(self,
-                    branches=None,
+                    branches: Branches = None,
                     run_config=[],
                     epochs_on=True,
                     run_fn=None,
@@ -54,9 +65,11 @@ class Gamma():
 
         run = self.setup_runs(self.network, branches, run_config, run_fn, rebuild_on)
 
+        run.run_data = []
+
         if epochs_on:
             for branch_idx, branch in enumerate(run.branches):
-                self.run_epochs(branch)
+                run.run_data.append(self.run_epochs(branch))
 
         return run
 
@@ -65,6 +78,8 @@ class Gamma():
         # --- init msg --- #
         if branch.src.msgs_on:
             self.init_msg(branch.src)
+
+        epoch_data = {'loss': []}
 
         for epoch_idx in range(branch.src.n_epochs):
 
@@ -88,13 +103,22 @@ class Gamma():
                         self.run_chain(chain)
 
             if is_on:
+
                 self.save_chkps(branch)
 
                 if branch.src.msgs_on:
+
                     self.epoch_msg(branch, epoch_idx)
                     self.save_log(branch, epoch_idx)
 
-        return
+                    epoch_data['loss'].append(branch.epoch_msg['data'][chain_idx]['main_loss'][0])
+
+                    if chain.config.val_on:
+                        if not epoch_data.get('val_loss', None):
+                            epoch_data.update({'val_loss': []})
+                        epoch_data['val_loss'].append(branch.epoch_msg['data'][chain_idx]['val_loss'][0])
+
+        return pd.DataFrame.from_dict(epoch_data)
 
     def run_chain(self, chain):
 
@@ -134,51 +158,14 @@ class Gamma():
     def get_models(self, chain, is_val):
 
         for model_idx, model in enumerate(chain.models):
-
             yield model_idx, model
 
     def run_models(self, chain, is_val):
 
         chain.specs = self.setup_specs(chain)
 
-        if chain.config.async_on:
-            self.run_models_async(chain, is_val)
-
-        if not chain.config.async_on:
-            for model_idx, model in self.get_models(chain, is_val):
-                self.run_data(chain, model, model_idx, is_val, chain.specs['run_spec'][model_idx])
-
-    def run_models_async(self, chain, is_val):
-
-        chain.model_subs = []
-
-        run_spec = chain.specs['run_spec']
-
-        for r_spec in run_spec:
-
-            chain.model_subs.append([])
-
-            for d_spec in r_spec:
-
-                async_idx = d_spec['async_idx']
-                device_idx = d_spec['device_idx']
-                start_idx = d_spec['start_idx']
-                end_idx = d_spec['end_idx']
-                max_wkrs = d_spec['max_wkrs']
-
-                if start_idx is not None:
-
-                    with futures.ThreadPoolExecutor(max_workers=max_wkrs) as model_exec:
-
-                        for model_idx in range(start_idx, end_idx):
-
-                            print('run_async', model_idx)
-
-                            model = chain.models[model_idx]
-
-                            model_sub = model_exec.submit(self.run_data, chain, model, model_idx, is_val, device_idx)
-
-                    futures.wait([async_sub['model_sub'] for async_sub in chain.model_subs[async_idx]])
+        for model_idx, model in self.get_models(chain, is_val):
+            self.run_data(chain, model, model_idx, is_val, chain.specs['run_spec'][model_idx])
 
     def run_data(self, chain, model, model_idx, is_val, device_idx):
 
@@ -240,6 +227,7 @@ class Gamma():
 
                 with tf.device('/GPU:' + str(device_idx)):
 
+                    # -- run model -- #
                     step_data = model.src(inputs=batch_data['inputs'],
                                           training=True,
                                           batch_idx=batch_idx,
@@ -249,7 +237,10 @@ class Gamma():
                     # -- save pre model variables to theta -- #
                     model.gauge.theta.save_params('model_pre')
 
+                    # -- split outputs of model -- #
                     step_data = self.run_splits(model, step_data, batch_data)
+
+                    # -- run loss function -- #
                     step_data = self.run_loss(model, step_data)
 
                     # -- run grads -- #
@@ -310,7 +301,8 @@ class Gamma():
         targets_config = model.chain.src.data_config['targets']
 
         if step_data['y_true'] is None:
-            step_data['y_true'] = batch_data['targets'][targets_config['true_slice']]
+            step_data['y_true'] = batch_data['outputs'][:, -1, :]
+            # step_data['y_true'] = batch_data['targets'][targets_config['true_slice']]
 
         if step_data['y_tracking'] is None:
             step_data['y_tracking'] = batch_data['targets'][targets_config['tracking_slice']]
@@ -362,100 +354,30 @@ class Gamma():
 
         device_dist = [80, 10, 10]
 
-        if chain.config.async_on:
+        device_calls = sum([device_dist[idx] for idx in range(n_devices)])
 
-            total_wrks = sum([device_dist[idx] for idx in range(n_devices)])
+        device_spec = []
+        run_spec = []
 
-            n_async_calls =  math.ceil(n_models / total_wrks)
+        model_idx = 0
 
-            device_spec = []
+        for device_idx in range(n_devices):
 
-            for device_idx in range(n_devices):
+            device_models = math.ceil(n_models * (device_dist[device_idx] / device_calls))
 
-                max_wkrs = device_dist[device_idx]
+            _spec = {'device_idx': device_idx,
+                     'device_calls': device_calls,
+                     'device_models': device_models}
 
-                max_wkrs_pct = max_wkrs / total_wrks
+            device_spec.insert(device_idx, _spec)
 
-                max_models = math.floor(n_models * max_wkrs_pct)
+            for n in range(device_models):
 
-                _spec = {'device_idx': device_idx,
-                         'max_wkrs': max_wkrs,
-                         'max_wkrs_pct': max_wkrs_pct,
-                         'max_models': max_models,
-                         'n_async_calls': n_async_calls}
+                if model_idx <= n_models:
 
-                device_spec.insert(device_idx, _spec)
+                    run_spec.insert(model_idx, device_idx)
 
-            run_spec = []
-
-            _end_idx = 0
-
-            for async_idx in range(n_async_calls):
-
-                run_spec.append([])
-
-                scale = async_idx
-
-                for device_idx in range(n_devices):
-
-                    max_wkrs = device_spec[device_idx]['max_wkrs']
-
-                    _end_idx += max_wkrs
-
-                    _start_idx = _end_idx - max_wkrs
-
-                    spec_models = []
-
-                    if _start_idx < n_models:
-
-                        start_idx = _start_idx
-
-                        if _end_idx <= n_models:
-                            end_idx = _end_idx
-                        else:
-                            end_idx = n_models
-
-                    if _start_idx >= n_models:
-
-                        start_idx = None
-                        end_idx = None
-
-                    _spec = {'async_idx': async_idx,
-                             'device_idx': device_idx,
-                             'max_wkrs': max_wkrs,
-                             '_start_idx': _start_idx,
-                             '_end_idx': _end_idx,
-                             'start_idx': start_idx,
-                             'end_idx': end_idx}
-
-                    run_spec[async_idx].insert(device_idx, _spec)
-
-        if not chain.config.async_on:
-
-            device_calls = sum([device_dist[idx] for idx in range(n_devices)])
-
-            device_spec = []
-            run_spec = []
-
-            model_idx = 0
-
-            for device_idx in range(n_devices):
-
-                device_models = math.ceil(n_models * (device_dist[device_idx] / device_calls))
-
-                _spec = {'device_idx': device_idx,
-                         'device_calls': device_calls,
-                         'device_models': device_models}
-
-                device_spec.insert(device_idx, _spec)
-
-                for n in range(device_models):
-
-                    if model_idx <= n_models:
-
-                        run_spec.insert(model_idx, device_idx)
-
-                    model_idx += 1
+                model_idx += 1
 
         return {'device_spec': device_spec,
                 'run_spec': run_spec}
@@ -618,39 +540,46 @@ class Gamma():
                     if epoch_idx > 0:
                         loss_epoch_idx = 0
 
-                branch.epoch_msg['data'][chain_idx]['main_loss'].insert(model_idx, np.mean(model.steps.full_loss[loss_epoch_idx]))
+                branch.epoch_msg['data'][chain_idx]['main_loss'].insert(
+                    model_idx, np.mean(model.steps.full_loss[loss_epoch_idx]))
 
                 if chain.config.val_on:
 
-                    branch.epoch_msg['data'][chain_idx]['val_loss'].insert(model_idx, np.mean(model.val_steps.full_loss[loss_epoch_idx]))
+                    branch.epoch_msg['data'][chain_idx]['val_loss'].insert(
+                        model_idx, np.mean(model.val_steps.full_loss[loss_epoch_idx]))
 
                 if chain.config.metrics_on:
 
-                    branch.epoch_msg['data'][chain_idx]['main_acc']['models_acc'].insert(model_idx, np.asarray(model.steps.metrics)[loss_epoch_idx])
+                    branch.epoch_msg['data'][chain_idx]['main_acc']['models_acc'].insert(
+                        model_idx, np.asarray(model.steps.metrics)[loss_epoch_idx])
 
                     if chain.config.val_on:
 
-                        branch.epoch_msg['data'][chain_idx]['val_acc']['models_acc'].insert(model_idx, np.asarray(model.val_steps.metrics)[loss_epoch_idx])
+                        branch.epoch_msg['data'][chain_idx]['val_acc']['models_acc'].insert(
+                            model_idx, np.asarray(model.val_steps.metrics)[loss_epoch_idx])
 
-            branch.epoch_msg['data'][chain_idx]['main_acc']['all_acc'] = np.asarray(branch.epoch_msg['data'][chain_idx]['main_acc']['models_acc'])
-            branch.epoch_msg['data'][chain_idx]['val_acc']['all_acc'] = np.asarray(branch.epoch_msg['data'][chain_idx]['val_acc']['models_acc'])
+            branch.epoch_msg['data'][chain_idx]['main_acc']['all_acc'] = np.asarray(
+                branch.epoch_msg['data'][chain_idx]['main_acc']['models_acc'])
+            branch.epoch_msg['data'][chain_idx]['val_acc']['all_acc'] = np.asarray(
+                branch.epoch_msg['data'][chain_idx]['val_acc']['models_acc'])
 
             # -- loop metrics fns -- #
 
-            for idx in range(chain.config.n_metrics_fns):
+            if chain.config.metrics_on:
+                for idx in range(chain.config.n_metrics_fns):
 
-                main_per_acc = branch.epoch_msg['data'][chain_idx]['main_acc']['all_acc'][:, :, idx]
-                val_per_acc = branch.epoch_msg['data'][chain_idx]['val_acc']['all_acc'][:, :, idx]
+                    main_per_acc = branch.epoch_msg['data'][chain_idx]['main_acc']['all_acc'][:, :, idx]
+                    val_per_acc = branch.epoch_msg['data'][chain_idx]['val_acc']['all_acc'][:, :, idx]
 
-                branch.epoch_msg['data'][chain_idx]['main_acc']['per_acc_batches'].insert(idx, main_per_acc)
-                branch.epoch_msg['data'][chain_idx]['main_acc']['per_acc'].insert(idx, main_per_acc[:, -1])
+                    branch.epoch_msg['data'][chain_idx]['main_acc']['per_acc_batches'].insert(idx, main_per_acc)
+                    branch.epoch_msg['data'][chain_idx]['main_acc']['per_acc'].insert(idx, main_per_acc[:, -1])
 
-                branch.epoch_msg['data'][chain_idx]['val_acc']['per_acc_batches'].insert(idx, val_per_acc)
-                branch.epoch_msg['data'][chain_idx]['val_acc']['per_acc'].insert(idx, val_per_acc[:, -1])
+                    branch.epoch_msg['data'][chain_idx]['val_acc']['per_acc_batches'].insert(idx, val_per_acc)
+                    branch.epoch_msg['data'][chain_idx]['val_acc']['per_acc'].insert(idx, val_per_acc[:, -1])
 
             # --- build body --- #
 
-            body_msg = self.epoch_msg_body(branch,chain,chain_idx,chain_lr)
+            body_msg = self.epoch_msg_body(branch, chain, chain_idx, chain_lr)
 
             branch.epoch_msg['body'] += body_msg
 
@@ -681,16 +610,16 @@ class Gamma():
 
         if chain.live.run_type == 'fit':
             body_msg += f"\n\t"
-            body_msg += f" ::: Avg LR {chain_lr:.7f} :::"
+            body_msg += f" ::: Avg LR {chain_lr:.8f} :::"
             body_msg += f"\n\n\t"
 
         if chain.live.run_type != 'fit':
             body_msg += f"\n\t"
 
-        body_msg += f" Loss \t {np.mean(main_loss):.7f}"
+        body_msg += f" Loss \t {np.mean(main_loss):.8f}"
 
         if chain.n_models > 1:
-            body_msg += f" ({np.std(main_loss):.7f})"
+            body_msg += f" ({np.std(main_loss):.8f})"
 
         if chain.config.metrics_on:
 
