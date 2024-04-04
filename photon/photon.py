@@ -4,7 +4,7 @@ import shelve
 import pathlib
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional, Union, TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -17,19 +17,19 @@ from torch.utils.data import DataLoader, Dataset, TensorDataset
 
 from sklearn import preprocessing
 
+
 from photon import metrics, losses, utils
 from photon.gamma import Gamma
 
+if TYPE_CHECKING:
+    from photon import Config
 
 class Photon():
 
     def __init__(self,
-                 framework: str = 'tf',
-                 run_dir: Optional[str] = None) -> None:
-
-        self.framework = framework
-        self.run_dir = run_dir
-        self.mod_dir = pathlib.Path(__file__).parent.parent
+                 config: Config) -> None:
+        
+        self.config = config
 
         self.metrics = metrics.Metrics()
         self.losses = losses.Losses()
@@ -63,12 +63,9 @@ class Photon():
             formatter={'float': ff}, edgeitems=edgeitems, linewidth=linewidth, threshold=threshold
         )
 
-    def setup_photon(self, photon_load_id):
+    def setup_photon(self, photon_id):
 
-        if self.run_dir is None:
-            self.run_dir = os.path.expanduser('~') + '/photon_temp'
-
-        self.store_dir = self.run_dir + '/store'
+        self.store_dir = self.config.run_dir + '/store'
 
         self.store = {'db': self.store_dir + '/db',
                       'runs': self.store_dir + '/runs',
@@ -82,7 +79,7 @@ class Photon():
 
         db = shelve.open(self.store['db']+'/db')
 
-        if photon_load_id == 0:
+        if photon_id == 0:
 
             if 'photon_id' in db:
                 db['photon_id'] += 1
@@ -91,9 +88,9 @@ class Photon():
 
             self.photon_id = db['photon_id']
 
-        if photon_load_id > 0:
+        if photon_id > 0:
 
-            self.photon_id = photon_load_id
+            self.photon_id = photon_id
 
         self.photon_nm = 'Photon_' + str(self.photon_id)
 
